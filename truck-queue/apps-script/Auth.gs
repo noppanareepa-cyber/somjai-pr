@@ -13,7 +13,7 @@ function requireRole_(role, pin) {
   var fails = Number(cache.get('pin_fails') || 0);
   if (fails >= 10) throw new Error('ใส่ PIN ผิดหลายครั้ง ระบบล็อกไว้ 15 นาที');
   var expected = PropertiesService.getScriptProperties().getProperty('PIN_' + role.toUpperCase());
-  if (!expected || String(pin || '') !== expected) {
+  if (!expected || String(pin || '').trim().toLowerCase() !== expected.toLowerCase()) {
     cache.put('pin_fails', String(fails + 1), 900);
     throw new Error('PIN ไม่ถูกต้อง');
   }
@@ -21,7 +21,7 @@ function requireRole_(role, pin) {
 
 /**
  * รันจากตัวแก้ไขสคริปต์ครั้งแรก แล้วแก้ค่าในนี้ก่อนรัน — อย่า commit PIN จริงกลับเข้า git
- * PIN ใช้ตัวเลขหรือตัวอักษรอังกฤษก็ได้ อย่างน้อย 6 ตัว ตัวพิมพ์เล็ก/ใหญ่ถือว่าต่างกัน
+ * PIN เป็นตัวอักษรเท่านั้น (อังกฤษหรือไทย) อย่างน้อย 6 ตัว · ไม่สนตัวพิมพ์เล็ก/ใหญ่
  */
 function setPins() {
   var pins = {
@@ -32,7 +32,7 @@ function setPins() {
   };
   var props = PropertiesService.getScriptProperties();
   Object.keys(pins).forEach(function (k) {
-    if (!/^\S{6,}$/.test(pins[k])) throw new Error(k + ' ต้องยาวอย่างน้อย 6 ตัว และไม่มีช่องว่าง');
+    if (!/^[A-Za-z\u0E01-\u0E4E]{6,}$/.test(pins[k])) throw new Error(k + ' ต้องเป็นตัวอักษรเท่านั้น อย่างน้อย 6 ตัว (ห้ามมีตัวเลขหรือช่องว่าง)');
     props.setProperty(k, pins[k]);
   });
   Logger.log('ตั้ง PIN เรียบร้อย');

@@ -110,7 +110,7 @@ function ready() {
   const coords = { '00005': [13.70, 100.40], '00019': [13.75, 100.57], '00025': [13.67, 100.61] };
   const sh = S.__sheets['สาขา'];
   sh._rows.forEach((r, i) => { if (i && coords[r[0]]) { r[6] = coords[r[0]][0]; r[7] = coords[r[0]][1]; } });
-  Object.assign(S.__props, { PIN_WH: '111111', PIN_ZONE: '222222', PIN_CEO: '333333', PIN_COO: '444444' });
+  Object.assign(S.__props, { PIN_WH: 'Klangsk', PIN_ZONE: 'zonemgr', PIN_CEO: 'ceoppp', PIN_COO: 'cooqqq' });
   return S;
 }
 
@@ -173,13 +173,13 @@ test('ยอดต่ำกว่า 3,000 นอกเส้นทาง: อ�
   // ใกล้สาขา (อยู่บนเส้นทาง) ไม่ต้องอนุมัติ
   assert.equal(S.submitRequest({ ...base, value: 1000, date: '2026-10-21', plate: 'ถศ 6598' }).status, 'รอยืนยัน');
 
-  assert.throws(() => S.decide('ceo', '333333', 'CEO', r.id, true, '', null), /ยังไม่ถึงขั้น/);
-  assert.throws(() => S.decide('zone', '222222', 'อนุชา ชัยนิวัติ (โจ้)', r.id, true, '', null), /ไม่อยู่ในเขต/);
-  assert.equal(J(S.approvals('zone', '222222', 'อธินันท์ วีระจิตต์ (อัฐ)')).length, 1);
-  S.decide('zone', '222222', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
-  S.decide('wh', '111111', 'ชาญวิทย์ สีสะอาด', r.id, true, '', { date: '2026-10-21', plate: 'ถศ 6598' }); // ฝั่งคลังไม่ต้องรอ CEO
-  assert.equal(S.decide('ceo', '333333', 'CEO', r.id, true, '', null).status, 'รออนุมัติ');
-  assert.equal(S.decide('coo', '444444', 'COO', r.id, true, '', null).status, 'ยืนยันแล้ว');
+  assert.throws(() => S.decide('ceo', 'CEOPPP', 'CEO', r.id, true, '', null), /ยังไม่ถึงขั้น/);
+  assert.throws(() => S.decide('zone', 'zonemgr', 'อนุชา ชัยนิวัติ (โจ้)', r.id, true, '', null), /ไม่อยู่ในเขต/);
+  assert.equal(J(S.approvals('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)')).length, 1);
+  S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
+  S.decide('wh', 'klangsk', 'ชาญวิทย์ สีสะอาด', r.id, true, '', { date: '2026-10-21', plate: 'ถศ 6598' }); // ฝั่งคลังไม่ต้องรอ CEO
+  assert.equal(S.decide('ceo', 'CEOPPP', 'CEO', r.id, true, '', null).status, 'รออนุมัติ');
+  assert.equal(S.decide('coo', 'cooqqq', 'COO', r.id, true, '', null).status, 'ยืนยันแล้ว');
   const log = S.__sheets['ประวัติการแก้ไข']._rows.filter(x => x[1] === r.id).map(x => x[3]);
   assert.deepEqual(log, ['ส่งคำขอ', 'ผจก.เขต อนุมัติ', 'คลัง อนุมัติ', 'CEO อนุมัติ', 'COO อนุมัติ']);
 });
@@ -187,8 +187,8 @@ test('ยอดต่ำกว่า 3,000 นอกเส้นทาง: อ�
 test('ไม่อนุมัติขั้นใดขั้นหนึ่ง = จบ และต้องมีเหตุผล', () => {
   const S = ready();
   const r = S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '', date: '2026-10-21', plate: 'ถศ 6598' });
-  assert.throws(() => S.decide('wh', '111111', 'จรินทร มีเจริญ', r.id, false, '', null), /เหตุผล/);
-  const out = S.decide('wh', '111111', 'จรินทร มีเจริญ', r.id, false, 'รถเต็ม', null);
+  assert.throws(() => S.decide('wh', 'klangsk', 'จรินทร มีเจริญ', r.id, false, '', null), /เหตุผล/);
+  const out = S.decide('wh', 'klangsk', 'จรินทร มีเจริญ', r.id, false, 'รถเต็ม', null);
   assert.equal(out.status, 'ไม่อนุมัติ');
   assert.match(out.reason, /รถเต็ม/);
 });
@@ -197,15 +197,15 @@ test('คลัง: ยืนยัน ย้ายวัน และปิด�
   const S = ready();
   const a = S.submitRequest({ ...base, date: '2026-10-21', plate: 'ถศ 6598' });
   const b = S.submitRequest({ ...base, customer: 'ลูกค้า ข', date: '2026-10-21', plate: 'ถศ 6598' });
-  assert.throws(() => S.whUpdate('000000', 'ชาญวิทย์ สีสะอาด', a.id, 'confirm', {}), /PIN ไม่ถูกต้อง/);
-  S.whUpdate('111111', 'ชาญวิทย์ สีสะอาด', a.id, 'confirm', { date: '2026-10-21', plate: 'ถศ 6598' });
-  S.whUpdate('111111', 'ชาญวิทย์ สีสะอาด', b.id, 'confirm', { date: '2026-10-21', plate: 'ถศ 6598' });
-  assert.throws(() => S.whUpdate('111111', 'ชาญวิทย์ สีสะอาด', b.id, 'move', { date: '2026-10-24', plate: 'บห 1782' }), /เหตุผล/);
-  const sheets = J(S.dailySheets('111111', '2026-10-21'));
+  assert.throws(() => S.whUpdate('wrongx', 'ชาญวิทย์ สีสะอาด', a.id, 'confirm', {}), /PIN ไม่ถูกต้อง/);
+  S.whUpdate('klangsk', 'ชาญวิทย์ สีสะอาด', a.id, 'confirm', { date: '2026-10-21', plate: 'ถศ 6598' });
+  S.whUpdate('klangsk', 'ชาญวิทย์ สีสะอาด', b.id, 'confirm', { date: '2026-10-21', plate: 'ถศ 6598' });
+  assert.throws(() => S.whUpdate('klangsk', 'ชาญวิทย์ สีสะอาด', b.id, 'move', { date: '2026-10-24', plate: 'บห 1782' }), /เหตุผล/);
+  const sheets = J(S.dailySheets('klangsk', '2026-10-21'));
   const t = sheets.find(x => x.plate === 'ถศ 6598');
   assert.equal(t.count, 2);
   assert.match(t.url, /view=sheet&date=2026-10-21&plate=/);
-  const res = S.whCloseRound('111111', 'จรินทร มีเจริญ', '2026-10-21', 'ถศ 6598', { [b.id]: 'ลูกค้าไม่อยู่' });
+  const res = S.whCloseRound('klangsk', 'จรินทร มีเจริญ', '2026-10-21', 'ถศ 6598', { [b.id]: 'ลูกค้าไม่อยู่' });
   assert.deepEqual(J(res), { delivered: 1, failed: 1 });
   const list = J(S.branchRequests('00005'));
   assert.equal(list.find(x => x.id === a.id).status, 'จัดส่งเรียบร้อย');
@@ -227,15 +227,15 @@ test('เลื่อนอัตโนมัติเมื่ออนุม�
 test('ใส่ PIN ผิดเกิน 10 ครั้ง ล็อกทั้งระบบ', () => {
   const S = ready();
   for (let i = 0; i < 10; i++) assert.throws(() => S.staffCheck('wh', 'x'), /PIN ไม่ถูกต้อง/);
-  assert.throws(() => S.staffCheck('wh', '111111'), /ล็อก/);
+  assert.throws(() => S.staffCheck('wh', 'klangsk'), /ล็อก/);
 });
 
 test('เพิ่มชื่อใหม่ และคลังยืนยันชื่อ', () => {
   const S = ready();
   S.addMyName('ใหม่', '00005');
-  assert.equal(J(S.whBoard('111111', '2026-10-19', '2026-10-26')).newStaff.length, 1);
-  S.staffAdmin('111111', 'จรินทร มีเจริญ', 'rename', 'ใหม่', '00005', 'ใหม่จริง');
-  assert.equal(J(S.whBoard('111111', '2026-10-19', '2026-10-26')).newStaff.length, 0);
+  assert.equal(J(S.whBoard('klangsk', '2026-10-19', '2026-10-26')).newStaff.length, 1);
+  S.staffAdmin('klangsk', 'จรินทร มีเจริญ', 'rename', 'ใหม่', '00005', 'ใหม่จริง');
+  assert.equal(J(S.whBoard('klangsk', '2026-10-19', '2026-10-26')).newStaff.length, 0);
   assert.ok(J(S.getBootstrap()).sales.some(s => s.name === 'ใหม่จริง'));
 });
 
