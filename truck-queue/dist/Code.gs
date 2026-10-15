@@ -770,7 +770,10 @@ function requireRole_(role, pin) {
   }
 }
 
-/** รันจากตัวแก้ไขสคริปต์ครั้งแรก แล้วแก้ค่าในนี้ก่อนรัน — อย่า commit PIN จริงกลับเข้า git */
+/**
+ * รันจากตัวแก้ไขสคริปต์ครั้งแรก แล้วแก้ค่าในนี้ก่อนรัน — อย่า commit PIN จริงกลับเข้า git
+ * PIN ใช้ตัวเลขหรือตัวอักษรอังกฤษก็ได้ อย่างน้อย 6 ตัว ตัวพิมพ์เล็ก/ใหญ่ถือว่าต่างกัน
+ */
 function setPins() {
   var pins = {
     PIN_WH: '',    // คลัง (จรินทร, ชาญวิทย์)
@@ -780,7 +783,7 @@ function setPins() {
   };
   var props = PropertiesService.getScriptProperties();
   Object.keys(pins).forEach(function (k) {
-    if (!/^\d{6,}$/.test(pins[k])) throw new Error(k + ' ต้องเป็นตัวเลขอย่างน้อย 6 หลัก');
+    if (!/^\S{6,}$/.test(pins[k])) throw new Error(k + ' ต้องยาวอย่างน้อย 6 ตัว และไม่มีช่องว่าง');
     props.setProperty(k, pins[k]);
   });
   Logger.log('ตั้ง PIN เรียบร้อย');
