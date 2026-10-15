@@ -5,7 +5,7 @@
 function doGet(e) {
   var p = (e && e.parameter) || {};
   if (p.view === 'sheet') return driverSheet_(p);
-  return HtmlService.createTemplateFromFile('Index').evaluate()
+  return template_('Index').evaluate()
     .setTitle('ขอคิวรถคลังสินค้า · สมใจ')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
@@ -17,14 +17,20 @@ function driverSheet_(p) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !plate || p.t !== sheetToken_(date, plate)) {
     return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">ลิงก์ใบงานไม่ถูกต้อง</p>');
   }
-  var t = HtmlService.createTemplateFromFile('Sheet');
+  var t = template_('Sheet');
   t.data = JSON.stringify(sheetData_(date, plate)).replace(/</g, '\\u003c');
   t.print = p.print === '1';
   return t.evaluate().setTitle('ใบงาน ' + plate + ' ' + thaiDate_(date))
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-function include_(name) { return HtmlService.createHtmlOutputFromFile(name).getContent(); }
+/** ไฟล์ HTML: ใช้ไฟล์ในโปรเจกต์ หรือข้อความที่ฝังไว้ใน Code.gs ฉบับรวมไฟล์ (dist/) */
+function html_(name) {
+  if (typeof EMBEDDED_HTML !== 'undefined') return EMBEDDED_HTML[name];
+  return HtmlService.createHtmlOutputFromFile(name).getContent();
+}
+function template_(name) { return HtmlService.createTemplate(html_(name)); }
+function include_(name) { return html_(name); }
 
 /** ฝังฟังก์ชันจาก Logic.gs ให้หน้าเว็บใช้ — สูตรค่าส่งมีที่เดียว */
 function logicSource_() {
