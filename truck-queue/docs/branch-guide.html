@@ -1,0 +1,203 @@
+<title>คู่มือขอคิวรถสาขา</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;600&display=swap">
+<style>
+  /* Layout: คอลัมน์เดียวอ่านบนมือถือ — แถบหัวสีเขียวสมใจ, ขั้นตอนเป็นลำดับจริง, กล่องกติกาเป็นตาราง */
+  :root {
+    --bg: #f5f8f5; --surface: #ffffff; --fg: #1b2620; --muted: #5d6b63; --line: #d9e3dc;
+    --brand: #1f7a3a; --brand-soft: #e3f1e6; --on-brand: #ffffff;
+    --warn: #8a5300; --warn-soft: #fff1d9; --bad: #a3261d; --bad-soft: #fbe7e5; --info: #1d5aa0; --info-soft: #e5eefa;
+    --display: 'Anuphan', 'Sarabun', 'Leelawadee UI', 'Thonburi', sans-serif;
+    --body: 'Sarabun', 'Leelawadee UI', 'Thonburi', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #111814; --surface: #18221c; --fg: #e4ece6; --muted: #9fb0a5; --line: #2c3a31;
+    --brand: #4fb06c; --brand-soft: #1d3324; --on-brand: #0d1a11;
+    --warn: #f0b85c; --warn-soft: #3a2c12; --bad: #f08a80; --bad-soft: #3d1c19; --info: #8ab8f0; --info-soft: #172a40;
+    color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #111814; --surface: #18221c; --fg: #e4ece6; --muted: #9fb0a5; --line: #2c3a31;
+    --brand: #4fb06c; --brand-soft: #1d3324; --on-brand: #0d1a11;
+    --warn: #f0b85c; --warn-soft: #3a2c12; --bad: #f08a80; --bad-soft: #3d1c19; --info: #8ab8f0; --info-soft: #172a40;
+    color-scheme: dark; }
+  body { background: var(--bg); color: var(--fg); font: 17px/1.7 var(--body); }
+  .band { background: var(--brand); color: var(--on-brand); }
+  .wrap { max-width: 720px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  header .wrap { padding-block: 28px 24px; }
+  .eyebrow { font: 600 14px/1 var(--display); letter-spacing: .06em; opacity: .85; }
+  h1 { font: 700 clamp(28px, 7vw, 38px)/1.25 var(--display); margin: 8px 0 6px; text-wrap: balance; }
+  header p { margin: 0; opacity: .92; }
+  main .wrap { padding-block: 8px 48px; display: grid; gap: 28px; }
+  h2 { font: 700 22px/1.35 var(--display); margin: 0 0 10px; text-wrap: balance; }
+  h3 { font: 600 18px/1.4 var(--display); margin: 0 0 4px; }
+  p { margin: 0 0 10px; }
+  section > :last-child { margin-bottom: 0; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start; }
+  .steps li::before { content: counter(s); width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: var(--on-brand);
+    font: 700 16px/32px var(--display); text-align: center; }
+  .steps li > div { min-width: 0; }
+  .steps p { margin: 0; color: var(--muted); }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .note { border-radius: 10px; padding: 12px 14px; margin: 10px 0 0; }
+  .note.warn { background: var(--warn-soft); color: var(--warn); }
+  .note.info { background: var(--info-soft); color: var(--info); }
+  .tbl { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 15px/1.4 var(--display); color: var(--muted); }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .pill { display: inline-block; font: 600 14px/1.5 var(--display); padding: 1px 10px; border-radius: 999px; white-space: nowrap; }
+  .p-info { background: var(--info-soft); color: var(--info); } .p-warn { background: var(--warn-soft); color: var(--warn); }
+  .p-ok { background: var(--brand-soft); color: var(--brand); } .p-bad { background: var(--bad-soft); color: var(--bad); }
+  .p-mute { background: var(--line); color: var(--muted); }
+  .rules { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .rules li { padding-left: 18px; position: relative; }
+  .rules li::before { content: ''; position: absolute; left: 2px; top: .7em; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+  .formula { font: 600 17px/1.6 var(--display); background: var(--brand-soft); color: var(--fg); border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+  details { border-bottom: 1px solid var(--line); padding: 10px 0; }
+  summary { cursor: pointer; font: 600 17px/1.5 var(--display); }
+  details p { margin: 8px 0 0; color: var(--muted); }
+  .copy { display: grid; gap: 10px; }
+  .copy pre { margin: 0; white-space: pre-wrap; font: 16px/1.65 var(--body); background: var(--bg); border: 1px dashed var(--line); border-radius: 10px; padding: 14px; }
+  button { font: 600 16px/1 var(--display); background: var(--brand); color: var(--on-brand); border: 0; border-radius: 10px; padding: 12px 16px; cursor: pointer; justify-self: start; }
+  button:focus-visible, summary:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+  .muted { color: var(--muted); font-size: 15px; }
+</style>
+
+<header class="band"><div class="wrap">
+  <div class="eyebrow">ร้านสมใจ · สำหรับพนักงานสาขา</div>
+  <h1>วิธีขอคิวรถคลังไปส่งของลูกค้า</h1>
+  <p>ใช้แทนการกรอกในชีต "ตารางขอรอบรถโกดัง" ไม่ต้องล็อกอิน เปิดจากมือถือได้</p>
+</div></header>
+
+<main><div class="wrap">
+
+  <section>
+    <h2>ครั้งแรกที่เปิดใช้</h2>
+    <ol class="steps">
+      <li><div><h3>เปิดลิงก์ระบบขอคิวรถ</h3><p>ลิงก์ได้จากคลังหรือผู้ดูแลระบบ กดบันทึกไว้หน้าจอหลักของมือถือจะเปิดง่ายขึ้น</p></div></li>
+      <li><div><h3>เลือกสาขา แล้วเลือกชื่อตัวเอง</h3><p>ไม่มีชื่อในรายการ กด "+ ไม่มีชื่อฉันในรายการ" แล้วพิมพ์ชื่อเล่น คลังจะตรวจชื่อให้อีกครั้ง</p></div></li>
+      <li><div><h3>กด "เริ่มใช้งาน"</h3><p>มือถือเครื่องนี้จะจำชื่อไว้ ครั้งต่อไปไม่ต้องเลือกใหม่ ถ้าเลือกผิด กดชื่อที่มุมขวาบนเพื่อเปลี่ยน</p></div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>ขอคิวส่งลูกค้า</h2>
+    <ol class="steps">
+      <li><div><h3>กรอกชื่อลูกค้า</h3><p>ชื่อบริษัท โรงเรียน หรือหน่วยงาน</p></div></li>
+      <li><div><h3>วางลิงก์ Google Maps ของลูกค้า</h3><p>เปิด Google Maps ปักหมุดที่ลูกค้า กด "แชร์" แล้ว "คัดลอกลิงก์" มาวาง ถ้าไม่มีลิงก์ ให้พิมพ์ที่อยู่เต็มแทน</p></div></li>
+      <li><div><h3>ใส่มูลค่าสินค้า (ก่อน VAT) และจำนวนสินค้า</h3><p>จำนวนเขียนแบบที่คลังเข้าใจ เช่น "10 ลัง" หรือ "6 ม้วน" แล้วเลือกว่าของอยู่ที่โกดัง สาขา หรือทั้งสองที่</p></div></li>
+      <li><div><h3>กด "ตรวจระยะทาง ค่าส่ง และวันส่ง"</h3><p>ระบบคำนวณระยะทางขับรถจากสาขาถึงลูกค้า และค่าส่งตามนโยบายให้เอง ไม่ต้องคิดเอง</p></div></li>
+      <li><div><h3>เลือกวันส่งจากปฏิทิน</h3><p>มีให้เลือกเฉพาะวันที่รถคลังผ่านสาขา บอกจำนวนจุดที่เหลือ วันที่เต็มแล้วกดไม่ได้</p></div></li>
+      <li><div><h3>ตรวจค่าส่ง ใส่เลขที่ TR (ถ้ามี) แล้วกด "ส่งคำขอ"</h3><p>ได้เลขคิว เช่น Q69-10-0042 ใช้อ้างอิงกับคลังได้</p></div></li>
+    </ol>
+    <p class="note info">ลูกค้าต้องรู้ค่าส่งก่อนสั่งซื้อทุกครั้ง ตามประกาศ COO009/69 ให้แจ้งตัวเลขที่ระบบคำนวณได้</p>
+  </section>
+
+  <section class="box">
+    <h2>ค่าส่งตามนโยบาย (MEMO COO009/69)</h2>
+    <p>ส่งฟรีได้ตามระยะทางที่กำหนดจากยอดซื้อในแต่ละใบสั่งซื้อ ก่อน VAT</p>
+    <div class="tbl"><table>
+      <thead><tr><th>ยอดซื้อ (บาท)</th><th class="num">ส่งฟรีไม่เกิน</th></tr></thead>
+      <tbody>
+        <tr><td>ต่ำกว่า 3,000</td><td class="num">ไม่มีระยะฟรี</td></tr>
+        <tr><td>3,000 – 4,999</td><td class="num">5 กม.</td></tr>
+        <tr><td>5,000 – 7,999</td><td class="num">10 กม.</td></tr>
+        <tr><td>8,000 – 9,999</td><td class="num">20 กม.</td></tr>
+        <tr><td>10,000 – 19,999</td><td class="num">30 กม.</td></tr>
+        <tr><td>20,000 – 39,999</td><td class="num">50 กม.</td></tr>
+        <tr><td>40,000 – 59,999</td><td class="num">100 กม.</td></tr>
+        <tr><td>60,000 – 99,999</td><td class="num">150 กม.</td></tr>
+        <tr><td>100,000 ขึ้นไป</td><td class="num">300 กม.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="formula">ส่วนที่เกินระยะฟรี ทุก 10 กม. คิด 120 บาท (เศษปัดขึ้น)</div>
+    <p class="muted">ตัวอย่าง: ยอด 5,500 บาท ระยะ 33 กม. → ฟรี 10 กม. เกิน 23 กม. = 3 ช่วง × 120 = 360 บาท</p>
+  </section>
+
+  <section>
+    <h2>กติกาที่ต้องรู้</h2>
+    <ul class="rules">
+      <li><b>ขอก่อน 16:00 น.</b> ถึงจะเลือกส่งวันพรุ่งนี้ได้ หลัง 16:00 น. เลือกได้เร็วสุดวันมะรืน เพราะคลังขึ้นของตอนเย็น</li>
+      <li><b>รับเฉพาะกรุงเทพฯ และปริมณฑล</b> (นนทบุรี สมุทรปราการ สมุทรสาคร นครปฐม ปทุมธานี) ลูกค้าต่างจังหวัด กรอก "ใบแจ้งขอรอบรถส่งสินค้าลูกค้าต่างจังหวัด" ตามเดิม</li>
+      <li><b>ยอดต่ำกว่า 3,000 บาท</b> ถ้าลูกค้าอยู่บนเส้นทางที่รถผ่าน ส่งได้เลย ถ้าไม่อยู่บนเส้นทาง ต้องรออนุมัติจากผู้จัดการเขต → CEO และคลัง → COO</li>
+      <li><b>เก็บค่าส่งน้อยกว่านโยบาย</b> ต้องใส่เหตุผลทุกครั้ง คลังจะเห็นเป็นรายการพิเศษ</li>
+      <li><b>สินค้ากลุ่มกระดาษหรือ Low Margin</b> ติ๊กช่องนี้ คลังจะพิจารณาค่าส่งเป็นรายกรณี</li>
+      <li><b>ลูกค้าหลายใบสั่งซื้อ</b> แยกเป็นคนละคำขอ เพราะค่าส่งคิดตามใบสั่งซื้อ</li>
+      <li><b>งานด่วนหรือนอกรอบ</b> ติ๊ก "นอกรอบ / ด่วน" แล้วเลือกวันที่ต้องการ คลังจะจัดรถให้เอง</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>ติดตามคำขอ</h2>
+    <p>กดแท็บ <b>"คำขอของสาขา"</b> เห็นคำขอของทุกคนในสาขาย้อนหลัง 30 วัน</p>
+    <div class="tbl"><table>
+      <thead><tr><th>สถานะ</th><th>ความหมาย</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill p-info">รอยืนยัน</span></td><td>คลังยังไม่ยืนยันรถ ยกเลิกเองได้</td></tr>
+        <tr><td><span class="pill p-warn">รออนุมัติ</span></td><td>ยอดต่ำกว่า 3,000 และนอกเส้นทาง รอผู้อนุมัติ ยกเลิกเองได้ ถ้าอนุมัติไม่ครบภายใน 16:00 น. วันก่อนส่ง ระบบเลื่อนไปรอบถัดไปให้</td></tr>
+        <tr><td><span class="pill p-ok">ยืนยันแล้ว</span></td><td>คลังจัดรถแล้ว จะยกเลิกหรือเปลี่ยนต้องโทรหาคลัง</td></tr>
+        <tr><td><span class="pill p-ok">จัดส่งเรียบร้อย</span></td><td>ส่งถึงลูกค้าแล้ว</td></tr>
+        <tr><td><span class="pill p-bad">ส่งไม่สำเร็จ</span></td><td>ดูเหตุผลในคำขอ แล้วขอคิวใหม่</td></tr>
+        <tr><td><span class="pill p-bad">ไม่อนุมัติ</span></td><td>ดูเหตุผลในคำขอ</td></tr>
+        <tr><td><span class="pill p-mute">ยกเลิก</span></td><td>ยกเลิกโดยคนขอหรือคลัง</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note warn">ถ้าคลังย้ายวันส่ง จะมีกล่องสีส้มบอกวันใหม่และเหตุผล เข้ามาเช็กก่อนแจ้งลูกค้าทุกครั้ง ระบบไม่ส่งแจ้งเตือน</p>
+  </section>
+
+  <section>
+    <h2>เจอปัญหา</h2>
+    <details><summary>ขึ้นว่า "สาขานี้ยังไม่เปิดใช้ระบบขอคิว"</summary><p>ช่วงทดลองเปิดเฉพาะบางสาขา ให้ใช้วิธีเดิมไปก่อนจนกว่าคลังจะแจ้งเปิดใช้</p></details>
+    <details><summary>ขึ้นว่า "หาตำแหน่งลูกค้าไม่เจอ"</summary><p>ลิงก์อาจเป็นลิงก์ค้นหา ไม่ใช่หมุด ให้เปิด Google Maps กดค้างที่ตำแหน่งลูกค้าให้ขึ้นหมุดแดง แล้วกด "แชร์" คัดลอกลิงก์ใหม่ หรือพิมพ์ที่อยู่เต็มแทน</p></details>
+    <details><summary>วันที่ต้องการเต็มแล้ว</summary><p>เลือกวันถัดไปที่ยังว่าง ถ้าลูกค้าต้องการวันนั้นจริงๆ ติ๊ก "นอกรอบ / ด่วน" แล้วโทรแจ้งคลัง</p></details>
+    <details><summary>ระยะทางดูไม่ถูก</summary><p>กด "ดูบนแผนที่" ใต้ผลคำนวณ เช็กว่าหมุดอยู่ที่ลูกค้าจริงไหม ถ้าหมุดผิด แก้ลิงก์แล้วกด "คำนวณใหม่"</p></details>
+    <details><summary>กดส่งแล้วขึ้นข้อความสีแดง</summary><p>อ่านข้อความแล้วแก้ตามนั้น เช่น ยังไม่ได้เลือกว่าของอยู่ที่ไหน หรือเก็บค่าส่งต่ำกว่านโยบายแต่ไม่ได้ใส่เหตุผล</p></details>
+    <p class="muted" style="margin-top:12px">ติดต่อคลังสินค้า: คุณจรินทร มีเจริญ (ผู้จัดการคลัง) · ชาญวิทย์ สีสะอาด (ผู้จัดรถ)</p>
+  </section>
+
+  <section class="box copy">
+    <h2>ข้อความสำหรับส่งในกลุ่ม LINE สาขา</h2>
+    <pre id="lineText">📦 ระบบขอคิวรถคลังส่งลูกค้า (เริ่มทดลองสาขาสายสี่)
+ใช้แทนการกรอกชีต "ตารางขอรอบรถโกดัง"
+
+ลิงก์: [วางลิงก์ระบบตรงนี้]
+
+วิธีใช้
+1. เปิดลิงก์ เลือกสาขาและชื่อตัวเอง (ครั้งแรกครั้งเดียว)
+2. ใส่ชื่อลูกค้า + วางลิงก์ Google Maps ของลูกค้า
+3. ใส่มูลค่าก่อน VAT + จำนวนสินค้า + ของอยู่ที่ไหน
+4. กด "ตรวจระยะทาง ค่าส่ง และวันส่ง"
+5. เลือกวันส่ง แล้วกด "ส่งคำขอ" จะได้เลขคิว
+
+กติกา
+• ขอก่อน 16:00 น. ถึงส่งวันพรุ่งนี้ได้
+• รับเฉพาะ กทม.+ปริมณฑล (ต่างจังหวัดใช้ใบแจ้งเดิม)
+• ค่าส่งคิดตามประกาศ COO009/69 ระบบคำนวณให้ แจ้งลูกค้าก่อนสั่งซื้อ
+• ยอดต่ำกว่า 3,000 และอยู่นอกเส้นทางรถ ต้องรออนุมัติ
+• ดูสถานะที่แท็บ "คำขอของสาขา" (ไม่มีแจ้งเตือน เข้าไปเช็กเอง)
+
+สงสัยติดต่อ คุณจรินทร / ชาญวิทย์ (คลัง)</pre>
+    <button type="button" id="copyBtn">คัดลอกข้อความ</button>
+    <p class="muted" id="copyMsg" aria-live="polite">อย่าลืมแทน [วางลิงก์ระบบตรงนี้] ด้วยลิงก์จริงก่อนส่ง</p>
+  </section>
+
+</div></main>
+
+<script>
+  document.getElementById('copyBtn').addEventListener('click', function () {
+    var pre = document.getElementById('lineText'), msg = document.getElementById('copyMsg');
+    function selectText() {
+      var r = document.createRange(); r.selectNodeContents(pre);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      msg.textContent = 'เลือกข้อความให้แล้ว กด Ctrl+C (หรือกดค้างแล้วเลือก "คัดลอก")';
+    }
+    try {
+      navigator.clipboard.writeText(pre.textContent).then(function () {
+        msg.textContent = 'คัดลอกแล้ว อย่าลืมแทน [วางลิงก์ระบบตรงนี้] ด้วยลิงก์จริง';
+      }, selectText);
+    } catch (e) { selectText(); }
+  });
+</script>
