@@ -2,7 +2,8 @@
 // รัน: node truck-queue/tools/bundle.js
 const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, '../apps-script'), out = path.join(__dirname, '../dist');
-const gs = ['Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api', 'Main'];
+// Main ก่อน — ให้ setup เป็นฟังก์ชันแรกในช่อง "เรียกใช้" ของ Apps Script
+const gs = ['Main', 'Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api'];
 const html = ['Index', 'Css', 'App', 'Sheet'];
 const head = '/**\n * ระบบขอคิวรถคลังสินค้า · สมใจ — ไฟล์รวม (สร้างอัตโนมัติจาก truck-queue/apps-script ห้ามแก้ไฟล์นี้โดยตรง)\n' +
   ' * วางทั้งไฟล์แทน Code.gs ใน Apps Script แล้วทำตาม truck-queue/README.md\n */\n';

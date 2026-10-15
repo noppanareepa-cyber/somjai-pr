@@ -9,6 +9,115 @@ var EMBEDDED_HTML = {
   Sheet: "<!DOCTYPE html>\n<html lang=\"th\">\n<head>\n  <base target=\"_top\">\n  <meta charset=\"utf-8\">\n  <link href=\"https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap\" rel=\"stylesheet\">\n  <script src=\"https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js\"></script>\n  <style>\n    * { box-sizing: border-box; }\n    body { margin: 0; font-family: 'Sarabun', system-ui, sans-serif; font-size: 14px; color: #111; background: #fff; }\n    .page { max-width: 800px; margin: 0 auto; padding: 16px; }\n    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border-bottom: 2px solid #1f7a3a; padding-bottom: 8px; }\n    h1 { font-size: 20px; margin: 0; color: #1f7a3a; }\n    .meta { font-size: 15px; } .meta b { font-size: 17px; }\n    h2 { font-size: 15px; margin: 14px 0 6px; }\n    .branches { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; }\n    table { width: 100%; border-collapse: collapse; }\n    th, td { border: 1px solid #999; padding: 5px 6px; vertical-align: top; text-align: left; }\n    th { background: #eef4ef; font-weight: 600; }\n    .qr { width: 74px; } .qr img { width: 70px; height: 70px; display: block; }\n    .sign { width: 110px; } .tick { width: 70px; font-size: 13px; line-height: 1.8; }\n    .muted { color: #555; font-size: 12px; }\n    .warn { color: #9a5b00; font-weight: 600; }\n    .foot { margin-top: 16px; display: flex; justify-content: space-between; gap: 16px; }\n    .foot div { flex: 1; border-top: 1px dotted #555; padding-top: 4px; text-align: center; }\n    .bar { margin: 12px 0; }\n    .bar button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #1f7a3a; background: #1f7a3a; color: #fff; }\n    @media print { .bar { display: none; } .page { padding: 0; } tr { page-break-inside: avoid; } }\n    @media (max-width: 600px) { .sign, .tick, th.sign, th.tick { display: none; } }\n  </style>\n</head>\n<body>\n  <div class=\"page\" id=\"p\"></div>\n  <script>\n    var D = <?!= data ?>;\n    var PRINT = <?= print ? 'true' : 'false' ?>;\n    function esc(s) { return String(s == null ? '' : s).replace(/[&<>\"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }\n    function qr(text) {\n      if (typeof qrcode === 'undefined' || !text) return '';\n      var q = qrcode(0, 'M'); q.addData(text); q.make();\n      return q.createImgTag(3, 0);\n    }\n    function mapLink(s) { return s.lat && s.lng ? 'https://www.google.com/maps/search/?api=1&query=' + s.lat + ',' + s.lng : s.mapsUrl; }\n    var total = D.stops.reduce(function (a, s) { return a + (s.fee || 0); }, 0);\n    document.getElementById('p').innerHTML =\n      '<header><div><h1>ใบงานรถส่งสินค้า · สมใจ</h1><div class=\"meta\"><b>' + esc(D.dateLabel) + '</b> · ทะเบียน <b>' + esc(D.plate) + '</b></div>' +\n      '<div class=\"meta\">คนขับ ' + esc(D.driver || '..................') + ' · เด็กรถ ' + esc(D.crew || '..................') + '</div></div>' +\n      '<div class=\"qr\">' + qr(location.href.replace(/&print=1/, '')) + '<div class=\"muted\">เปิดบนมือถือ</div></div></header>' +\n      '<div class=\"bar\"><button onclick=\"print()\">พิมพ์</button></div>' +\n      '<h2>1. สาขาที่แวะ (ตามลำดับ)</h2><div class=\"branches\">' + (D.branches.length ? D.branches.map(esc).join(' → ') : 'ไม่มีในตารางรอบรถ (รอบพิเศษ)') + '</div>' +\n      '<h2>2. จุดส่งลูกค้า (' + D.stops.length + ' จุด · ค่าส่งที่ต้องเก็บรวม ' + total.toLocaleString('th-TH') + ' บาท)</h2>' +\n      (D.stops.length ? '<table><thead><tr><th>#</th><th>ลูกค้า</th><th>สินค้า</th><th>เก็บเงิน</th><th class=\"qr\">แผนที่</th><th class=\"tick\">ผล</th><th class=\"sign\">ผู้รับเซ็น</th></tr></thead><tbody>' +\n        D.stops.map(function (s, i) {\n          var link = mapLink(s);\n          return '<tr><td>' + (i + 1) + '</td><td><b>' + esc(s.customer) + '</b><div class=\"muted\">' + esc(s.id) + ' · สาขา ' + esc(s.branchName) + '</div>' +\n            (s.phone ? '<div>☎ <a href=\"tel:' + esc(s.phone) + '\">' + esc(s.phone) + '</a></div>' : '') +\n            (s.timeWindow ? '<div>เวลา ' + esc(s.timeWindow) + '</div>' : '') +\n            '<div class=\"muted\">' + esc(s.address) + '</div>' + (s.note ? '<div class=\"muted\">หมายเหตุ: ' + esc(s.note) + '</div>' : '') +\n            (s.status !== 'ยืนยันแล้ว' ? '<div class=\"warn\">' + esc(s.status) + '</div>' : '') + '</td>' +\n            '<td>' + esc(s.qty) + '<div class=\"muted\">ของอยู่ที่' + esc(s.stock) + (s.trNo ? ' · TR ' + esc(s.trNo) : '') + '</div></td>' +\n            '<td>' + (s.fee ? '<b>' + s.fee.toLocaleString('th-TH') + '</b> บาท' : '-') + '</td>' +\n            '<td class=\"qr\">' + (link ? '<a href=\"' + esc(link) + '\">' + qr(link) + '</a>' : '') + '</td>' +\n            '<td class=\"tick\">☐ ส่งแล้ว<br>☐ ไม่สำเร็จ<br>เหตุผล ......</td><td class=\"sign\"></td></tr>';\n        }).join('') + '</tbody></table>' : '<p>ไม่มีจุดส่งลูกค้า</p>') +\n      '<div class=\"foot\"><div>คนขับ</div><div>ผู้จัดรถ</div><div>คลังตรวจรับกลับ</div></div>';\n    if (PRINT) setTimeout(function () { window.print(); }, 600);\n  </script>\n</body>\n</html>\n"
 };
 
+// ═════ Main.gs ═════
+/**
+ * จุดเข้าเว็บแอป + การติดตั้งครั้งแรก
+ */
+
+/**
+ * ติดตั้งครั้งแรก: สร้างชีต ใส่ข้อมูลตั้งต้น และตั้งเวลาเลื่อนงานอัตโนมัติ
+ * รันซ้ำได้ — ชีตที่มีข้อมูลแล้วจะไม่ถูกเขียนทับ
+ */
+function setup() {
+  var ss = ss_();
+  Object.keys(COLS).forEach(function (name) {
+    var sh = ss.getSheetByName(name) || ss.insertSheet(name);
+    var headers = COLS[name].map(function (c) { return c[1]; });
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#e8f0e8');
+    sh.setFrozenRows(1);
+  });
+  // วันที่และรหัสเก็บเป็นข้อความ กันชีตแปลงเป็นวันที่/ตัดเลข 0 นำหน้า
+  textColumns_(SHEET.REQ, ['id', 'branchCode', 'date', 'createdAt', 'updatedAt', 'phone', 'trNo']);
+  textColumns_(SHEET.BRANCH, ['code']);
+  textColumns_(SHEET.STAFF, ['branchCode', 'createdAt']);
+  textColumns_(SHEET.SCHED, ['effectiveFrom', 'branches']);
+  textColumns_(SHEET.HOLIDAY, ['date']);
+  textColumns_(SHEET.LOG, ['ts']);
+
+  seedIfEmpty_(SHEET.SETTING, DEFAULT_SETTINGS.map(function (d) { return { key: d[0], value: d[1], note: d[2] }; }));
+  seedIfEmpty_(SHEET.TIER, DEFAULT_TIERS.map(function (t) { return { minValue: t[0], freeKm: t[1] }; }));
+  seedIfEmpty_(SHEET.BRANCH, seedBranches_().map(function (b) {
+    return { code: b[0], name: b[1], zone: b[2], zoneManager: b[3], mapsUrl: b[4], status: b[5] };
+  }));
+  seedIfEmpty_(SHEET.TRUCK, seedTrucks_().map(function (t) {
+    return { plate: t.plate, aliases: t.aliases.join(', '), brand: t.brand, driver: t.driver, crew: t.crew };
+  }));
+  seedIfEmpty_(SHEET.SCHED, seedSchedule_().map(function (r) {
+    return { effectiveFrom: r.effectiveFrom, plate: r.plate, weekday: r.weekday, branches: r.branches.join(','), slots: r.slots };
+  }));
+  var now = nowStr_();
+  seedIfEmpty_(SHEET.STAFF, seedSalesStaff_().map(function (s) {
+    return { name: s[0], branchCode: s[1], role: 'ขาย', status: 'ใช้งาน', createdAt: now };
+  }).concat(seedWarehouseStaff_().map(function (n) {
+    return { name: n, branchCode: '', role: 'คลัง', status: 'ใช้งาน', createdAt: now };
+  })));
+
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'autoPostpone') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('autoPostpone').timeBased().everyDays(1)
+    .atHour(settings_().cutoffHour).nearMinute(5).inTimezone(TZ).create();
+
+  Logger.log('ติดตั้งเรียบร้อย · ขั้นต่อไป: แก้ PIN ใน setPins() แล้วรัน, รันเมนู "เติมพิกัดสาขา", แล้ว Deploy เป็น Web app');
+}
+
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  if (p.view === 'sheet') return driverSheet_(p);
+  return template_('Index').evaluate()
+    .setTitle('ขอคิวรถคลังสินค้า · สมใจ')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+}
+
+/** ใบงานรายวัน (พิมพ์ / เปิดบนมือถือคนขับ) — ต้องมีโทเคนที่ตรงกับวันที่+ทะเบียน */
+function driverSheet_(p) {
+  var date = String(p.date || ''), plate = String(p.plate || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !plate || p.t !== sheetToken_(date, plate)) {
+    return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">ลิงก์ใบงานไม่ถูกต้อง</p>');
+  }
+  var t = template_('Sheet');
+  t.data = JSON.stringify(sheetData_(date, plate)).replace(/</g, '\\u003c');
+  t.print = p.print === '1';
+  return t.evaluate().setTitle('ใบงาน ' + plate + ' ' + thaiDate_(date))
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/** ไฟล์ HTML: ใช้ไฟล์ในโปรเจกต์ หรือข้อความที่ฝังไว้ใน Code.gs ฉบับรวมไฟล์ (dist/) */
+function html_(name) {
+  if (typeof EMBEDDED_HTML !== 'undefined') return EMBEDDED_HTML[name];
+  return HtmlService.createHtmlOutputFromFile(name).getContent();
+}
+function template_(name) { return HtmlService.createTemplate(html_(name)); }
+function include_(name) { return html_(name); }
+
+/** ฝังฟังก์ชันจาก Logic.gs ให้หน้าเว็บใช้ — สูตรค่าส่งมีที่เดียว */
+function logicSource_() {
+  return 'var STATUS=' + JSON.stringify(STATUS) + ';var DEFAULT_TIERS=' + JSON.stringify(DEFAULT_TIERS) + ';' +
+    [freeKm_, policyFee_, addDays_, weekday_, thaiDate_].map(String).join('\n') +
+    'var THAI_DAYS=' + JSON.stringify(THAI_DAYS) + ';var THAI_MONTHS=' + JSON.stringify(THAI_MONTHS) + ';';
+}
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('ระบบขอคิวรถ')
+    .addItem('เติมพิกัดสาขาจากลิงก์แผนที่', 'updateBranchCoords')
+    .addToUi();
+}
+
+function textColumns_(name, keys) {
+  var sh = sheet_(name);
+  keys.forEach(function (k) {
+    var col = keys_(name).indexOf(k) + 1;
+    sh.getRange(1, col, sh.getMaxRows(), 1).setNumberFormat('@');
+  });
+}
+
+function seedIfEmpty_(name, rows) {
+  var sh = sheet_(name);
+  if (sh.getLastRow() > 1 || !rows.length) return;
+  sh.getRange(2, 1, rows.length, keys_(name).length).setValues(rows.map(function (r) { return toRow_(name, r); }));
+}
+
 // ═════ Logic.gs ═════
 /**
  * ตรรกะล้วน — ไม่เรียกบริการของ Apps Script เลย
@@ -1114,113 +1223,4 @@ function autoPostpone() {
       log_(r.id, 'ระบบ', 'เลื่อนอัตโนมัติ', old + ' → ' + thaiDate_(String(r.date)) + ' ' + (r.plate || '(รอคลังจัดรถ)'));
     });
   });
-}
-
-// ═════ Main.gs ═════
-/**
- * จุดเข้าเว็บแอป + การติดตั้งครั้งแรก
- */
-
-function doGet(e) {
-  var p = (e && e.parameter) || {};
-  if (p.view === 'sheet') return driverSheet_(p);
-  return template_('Index').evaluate()
-    .setTitle('ขอคิวรถคลังสินค้า · สมใจ')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
-}
-
-/** ใบงานรายวัน (พิมพ์ / เปิดบนมือถือคนขับ) — ต้องมีโทเคนที่ตรงกับวันที่+ทะเบียน */
-function driverSheet_(p) {
-  var date = String(p.date || ''), plate = String(p.plate || '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !plate || p.t !== sheetToken_(date, plate)) {
-    return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">ลิงก์ใบงานไม่ถูกต้อง</p>');
-  }
-  var t = template_('Sheet');
-  t.data = JSON.stringify(sheetData_(date, plate)).replace(/</g, '\\u003c');
-  t.print = p.print === '1';
-  return t.evaluate().setTitle('ใบงาน ' + plate + ' ' + thaiDate_(date))
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-}
-
-/** ไฟล์ HTML: ใช้ไฟล์ในโปรเจกต์ หรือข้อความที่ฝังไว้ใน Code.gs ฉบับรวมไฟล์ (dist/) */
-function html_(name) {
-  if (typeof EMBEDDED_HTML !== 'undefined') return EMBEDDED_HTML[name];
-  return HtmlService.createHtmlOutputFromFile(name).getContent();
-}
-function template_(name) { return HtmlService.createTemplate(html_(name)); }
-function include_(name) { return html_(name); }
-
-/** ฝังฟังก์ชันจาก Logic.gs ให้หน้าเว็บใช้ — สูตรค่าส่งมีที่เดียว */
-function logicSource_() {
-  return 'var STATUS=' + JSON.stringify(STATUS) + ';var DEFAULT_TIERS=' + JSON.stringify(DEFAULT_TIERS) + ';' +
-    [freeKm_, policyFee_, addDays_, weekday_, thaiDate_].map(String).join('\n') +
-    'var THAI_DAYS=' + JSON.stringify(THAI_DAYS) + ';var THAI_MONTHS=' + JSON.stringify(THAI_MONTHS) + ';';
-}
-
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('ระบบขอคิวรถ')
-    .addItem('เติมพิกัดสาขาจากลิงก์แผนที่', 'updateBranchCoords')
-    .addToUi();
-}
-
-/**
- * ติดตั้งครั้งแรก: สร้างชีต ใส่ข้อมูลตั้งต้น และตั้งเวลาเลื่อนงานอัตโนมัติ
- * รันซ้ำได้ — ชีตที่มีข้อมูลแล้วจะไม่ถูกเขียนทับ
- */
-function setup() {
-  var ss = ss_();
-  Object.keys(COLS).forEach(function (name) {
-    var sh = ss.getSheetByName(name) || ss.insertSheet(name);
-    var headers = COLS[name].map(function (c) { return c[1]; });
-    sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#e8f0e8');
-    sh.setFrozenRows(1);
-  });
-  // วันที่และรหัสเก็บเป็นข้อความ กันชีตแปลงเป็นวันที่/ตัดเลข 0 นำหน้า
-  textColumns_(SHEET.REQ, ['id', 'branchCode', 'date', 'createdAt', 'updatedAt', 'phone', 'trNo']);
-  textColumns_(SHEET.BRANCH, ['code']);
-  textColumns_(SHEET.STAFF, ['branchCode', 'createdAt']);
-  textColumns_(SHEET.SCHED, ['effectiveFrom', 'branches']);
-  textColumns_(SHEET.HOLIDAY, ['date']);
-  textColumns_(SHEET.LOG, ['ts']);
-
-  seedIfEmpty_(SHEET.SETTING, DEFAULT_SETTINGS.map(function (d) { return { key: d[0], value: d[1], note: d[2] }; }));
-  seedIfEmpty_(SHEET.TIER, DEFAULT_TIERS.map(function (t) { return { minValue: t[0], freeKm: t[1] }; }));
-  seedIfEmpty_(SHEET.BRANCH, seedBranches_().map(function (b) {
-    return { code: b[0], name: b[1], zone: b[2], zoneManager: b[3], mapsUrl: b[4], status: b[5] };
-  }));
-  seedIfEmpty_(SHEET.TRUCK, seedTrucks_().map(function (t) {
-    return { plate: t.plate, aliases: t.aliases.join(', '), brand: t.brand, driver: t.driver, crew: t.crew };
-  }));
-  seedIfEmpty_(SHEET.SCHED, seedSchedule_().map(function (r) {
-    return { effectiveFrom: r.effectiveFrom, plate: r.plate, weekday: r.weekday, branches: r.branches.join(','), slots: r.slots };
-  }));
-  var now = nowStr_();
-  seedIfEmpty_(SHEET.STAFF, seedSalesStaff_().map(function (s) {
-    return { name: s[0], branchCode: s[1], role: 'ขาย', status: 'ใช้งาน', createdAt: now };
-  }).concat(seedWarehouseStaff_().map(function (n) {
-    return { name: n, branchCode: '', role: 'คลัง', status: 'ใช้งาน', createdAt: now };
-  })));
-
-  ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'autoPostpone') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('autoPostpone').timeBased().everyDays(1)
-    .atHour(settings_().cutoffHour).nearMinute(5).inTimezone(TZ).create();
-
-  Logger.log('ติดตั้งเรียบร้อย · ขั้นต่อไป: แก้ PIN ใน setPins() แล้วรัน, รันเมนู "เติมพิกัดสาขา", แล้ว Deploy เป็น Web app');
-}
-
-function textColumns_(name, keys) {
-  var sh = sheet_(name);
-  keys.forEach(function (k) {
-    var col = keys_(name).indexOf(k) + 1;
-    sh.getRange(1, col, sh.getMaxRows(), 1).setNumberFormat('@');
-  });
-}
-
-function seedIfEmpty_(name, rows) {
-  var sh = sheet_(name);
-  if (sh.getLastRow() > 1 || !rows.length) return;
-  sh.getRange(2, 1, rows.length, keys_(name).length).setValues(rows.map(function (r) { return toRow_(name, r); }));
 }

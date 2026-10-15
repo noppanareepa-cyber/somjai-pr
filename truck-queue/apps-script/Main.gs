@@ -2,49 +2,6 @@
  * จุดเข้าเว็บแอป + การติดตั้งครั้งแรก
  */
 
-function doGet(e) {
-  var p = (e && e.parameter) || {};
-  if (p.view === 'sheet') return driverSheet_(p);
-  return template_('Index').evaluate()
-    .setTitle('ขอคิวรถคลังสินค้า · สมใจ')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
-}
-
-/** ใบงานรายวัน (พิมพ์ / เปิดบนมือถือคนขับ) — ต้องมีโทเคนที่ตรงกับวันที่+ทะเบียน */
-function driverSheet_(p) {
-  var date = String(p.date || ''), plate = String(p.plate || '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !plate || p.t !== sheetToken_(date, plate)) {
-    return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">ลิงก์ใบงานไม่ถูกต้อง</p>');
-  }
-  var t = template_('Sheet');
-  t.data = JSON.stringify(sheetData_(date, plate)).replace(/</g, '\\u003c');
-  t.print = p.print === '1';
-  return t.evaluate().setTitle('ใบงาน ' + plate + ' ' + thaiDate_(date))
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-}
-
-/** ไฟล์ HTML: ใช้ไฟล์ในโปรเจกต์ หรือข้อความที่ฝังไว้ใน Code.gs ฉบับรวมไฟล์ (dist/) */
-function html_(name) {
-  if (typeof EMBEDDED_HTML !== 'undefined') return EMBEDDED_HTML[name];
-  return HtmlService.createHtmlOutputFromFile(name).getContent();
-}
-function template_(name) { return HtmlService.createTemplate(html_(name)); }
-function include_(name) { return html_(name); }
-
-/** ฝังฟังก์ชันจาก Logic.gs ให้หน้าเว็บใช้ — สูตรค่าส่งมีที่เดียว */
-function logicSource_() {
-  return 'var STATUS=' + JSON.stringify(STATUS) + ';var DEFAULT_TIERS=' + JSON.stringify(DEFAULT_TIERS) + ';' +
-    [freeKm_, policyFee_, addDays_, weekday_, thaiDate_].map(String).join('\n') +
-    'var THAI_DAYS=' + JSON.stringify(THAI_DAYS) + ';var THAI_MONTHS=' + JSON.stringify(THAI_MONTHS) + ';';
-}
-
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('ระบบขอคิวรถ')
-    .addItem('เติมพิกัดสาขาจากลิงก์แผนที่', 'updateBranchCoords')
-    .addToUi();
-}
-
 /**
  * ติดตั้งครั้งแรก: สร้างชีต ใส่ข้อมูลตั้งต้น และตั้งเวลาเลื่อนงานอัตโนมัติ
  * รันซ้ำได้ — ชีตที่มีข้อมูลแล้วจะไม่ถูกเขียนทับ
@@ -90,6 +47,49 @@ function setup() {
     .atHour(settings_().cutoffHour).nearMinute(5).inTimezone(TZ).create();
 
   Logger.log('ติดตั้งเรียบร้อย · ขั้นต่อไป: แก้ PIN ใน setPins() แล้วรัน, รันเมนู "เติมพิกัดสาขา", แล้ว Deploy เป็น Web app');
+}
+
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+  if (p.view === 'sheet') return driverSheet_(p);
+  return template_('Index').evaluate()
+    .setTitle('ขอคิวรถคลังสินค้า · สมใจ')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+}
+
+/** ใบงานรายวัน (พิมพ์ / เปิดบนมือถือคนขับ) — ต้องมีโทเคนที่ตรงกับวันที่+ทะเบียน */
+function driverSheet_(p) {
+  var date = String(p.date || ''), plate = String(p.plate || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !plate || p.t !== sheetToken_(date, plate)) {
+    return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">ลิงก์ใบงานไม่ถูกต้อง</p>');
+  }
+  var t = template_('Sheet');
+  t.data = JSON.stringify(sheetData_(date, plate)).replace(/</g, '\\u003c');
+  t.print = p.print === '1';
+  return t.evaluate().setTitle('ใบงาน ' + plate + ' ' + thaiDate_(date))
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/** ไฟล์ HTML: ใช้ไฟล์ในโปรเจกต์ หรือข้อความที่ฝังไว้ใน Code.gs ฉบับรวมไฟล์ (dist/) */
+function html_(name) {
+  if (typeof EMBEDDED_HTML !== 'undefined') return EMBEDDED_HTML[name];
+  return HtmlService.createHtmlOutputFromFile(name).getContent();
+}
+function template_(name) { return HtmlService.createTemplate(html_(name)); }
+function include_(name) { return html_(name); }
+
+/** ฝังฟังก์ชันจาก Logic.gs ให้หน้าเว็บใช้ — สูตรค่าส่งมีที่เดียว */
+function logicSource_() {
+  return 'var STATUS=' + JSON.stringify(STATUS) + ';var DEFAULT_TIERS=' + JSON.stringify(DEFAULT_TIERS) + ';' +
+    [freeKm_, policyFee_, addDays_, weekday_, thaiDate_].map(String).join('\n') +
+    'var THAI_DAYS=' + JSON.stringify(THAI_DAYS) + ';var THAI_MONTHS=' + JSON.stringify(THAI_MONTHS) + ';';
+}
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('ระบบขอคิวรถ')
+    .addItem('เติมพิกัดสาขาจากลิงก์แผนที่', 'updateBranchCoords')
+    .addToUi();
 }
 
 function textColumns_(name, keys) {
