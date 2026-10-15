@@ -1,0 +1,154 @@
+<title>คู่มือคลังจัดรถ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;600&display=swap">
+<style>
+  /* Layout: คอลัมน์เดียวอ่านบนมือถือ — แถบหัวสีเขียวสมใจ, ขั้นตอนเป็นลำดับจริง, ตารางสำหรับปุ่มและสถานะ */
+  :root {
+    --bg: #f5f8f5; --surface: #ffffff; --fg: #1b2620; --muted: #5d6b63; --line: #d9e3dc;
+    --brand: #1f7a3a; --brand-soft: #e3f1e6; --on-brand: #ffffff;
+    --warn: #8a5300; --warn-soft: #fff1d9; --bad: #a3261d; --bad-soft: #fbe7e5; --info: #1d5aa0; --info-soft: #e5eefa;
+    --display: 'Anuphan', 'Sarabun', 'Leelawadee UI', 'Thonburi', sans-serif;
+    --body: 'Sarabun', 'Leelawadee UI', 'Thonburi', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #111814; --surface: #18221c; --fg: #e4ece6; --muted: #9fb0a5; --line: #2c3a31;
+    --brand: #4fb06c; --brand-soft: #1d3324; --on-brand: #0d1a11;
+    --warn: #f0b85c; --warn-soft: #3a2c12; --bad: #f08a80; --bad-soft: #3d1c19; --info: #8ab8f0; --info-soft: #172a40;
+    color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #111814; --surface: #18221c; --fg: #e4ece6; --muted: #9fb0a5; --line: #2c3a31;
+    --brand: #4fb06c; --brand-soft: #1d3324; --on-brand: #0d1a11;
+    --warn: #f0b85c; --warn-soft: #3a2c12; --bad: #f08a80; --bad-soft: #3d1c19; --info: #8ab8f0; --info-soft: #172a40;
+    color-scheme: dark; }
+  body { background: var(--bg); color: var(--fg); font: 17px/1.7 var(--body); }
+  .band { background: var(--brand); color: var(--on-brand); }
+  .wrap { max-width: 720px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  header .wrap { padding-block: 28px 24px; }
+  .eyebrow { font: 600 14px/1 var(--display); letter-spacing: .06em; opacity: .85; }
+  h1 { font: 700 clamp(28px, 7vw, 38px)/1.25 var(--display); margin: 8px 0 6px; text-wrap: balance; }
+  header p { margin: 0; opacity: .92; }
+  main .wrap { padding-block: 8px 48px; display: grid; gap: 28px; }
+  h2 { font: 700 22px/1.35 var(--display); margin: 0 0 10px; text-wrap: balance; }
+  h3 { font: 600 18px/1.4 var(--display); margin: 0 0 4px; }
+  p { margin: 0 0 10px; }
+  section > :last-child { margin-bottom: 0; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start; }
+  .steps li::before { content: counter(s); width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: var(--on-brand);
+    font: 700 16px/32px var(--display); text-align: center; }
+  .steps li > div { min-width: 0; }
+  .steps p { margin: 0; color: var(--muted); }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .note { border-radius: 10px; padding: 12px 14px; margin: 10px 0 0; }
+  .note.warn { background: var(--warn-soft); color: var(--warn); }
+  .note.info { background: var(--info-soft); color: var(--info); }
+  .tbl { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 15px/1.4 var(--display); color: var(--muted); }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .pill { display: inline-block; font: 600 14px/1.5 var(--display); padding: 1px 10px; border-radius: 999px; white-space: nowrap; }
+  .p-info { background: var(--info-soft); color: var(--info); } .p-warn { background: var(--warn-soft); color: var(--warn); }
+  .p-ok { background: var(--brand-soft); color: var(--brand); } .p-bad { background: var(--bad-soft); color: var(--bad); }
+  .p-mute { background: var(--line); color: var(--muted); }
+  .rules { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .rules li { padding-left: 18px; position: relative; }
+  .rules li::before { content: ''; position: absolute; left: 2px; top: .7em; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+  .formula { font: 600 17px/1.6 var(--display); background: var(--brand-soft); color: var(--fg); border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+  details { border-bottom: 1px solid var(--line); padding: 10px 0; }
+  summary { cursor: pointer; font: 600 17px/1.5 var(--display); }
+  details p { margin: 8px 0 0; color: var(--muted); }
+  .copy { display: grid; gap: 10px; }
+  .copy pre { margin: 0; white-space: pre-wrap; font: 16px/1.65 var(--body); background: var(--bg); border: 1px dashed var(--line); border-radius: 10px; padding: 14px; }
+  button { font: 600 16px/1 var(--display); background: var(--brand); color: var(--on-brand); border: 0; border-radius: 10px; padding: 12px 16px; cursor: pointer; justify-self: start; }
+  button:focus-visible, summary:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+  .muted { color: var(--muted); font-size: 15px; }
+  .flow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+  .lane { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+  .lane b { display: block; font: 600 15px/1.4 var(--display); color: var(--muted); margin-bottom: 6px; }
+  .lane span { font: 600 17px/1.6 var(--display); }
+  .join { grid-column: 1 / -1; text-align: center; font: 600 16px/1.5 var(--display); background: var(--brand-soft); border-radius: 12px; padding: 10px; }
+  @media (max-width: 420px) { .flow { grid-template-columns: 1fr; } }
+</style>
+
+<header class="band"><div class="wrap">
+  <div class="eyebrow">ร้านสมใจ · สำหรับคลังสินค้า</div>
+  <h1>วิธีจัดรถ พิมพ์ใบงาน และปิดรอบ</h1>
+  <p>สำหรับคุณจรินทรและชาญวิทย์ ใช้หน้าเว็บเดียวกับสาขา เข้าด้วย PIN คลัง</p>
+</div></header>
+
+<main><div class="wrap">
+  <section>
+    <h2>เข้าใช้งาน</h2>
+    <ol class="steps">
+      <li><div><h3>เปิดลิงก์ระบบขอคิวรถ</h3><p>ลิงก์เดียวกับที่สาขาใช้</p></div></li>
+      <li><div><h3>กด "สำหรับคลัง / ผู้อนุมัติ" ที่ท้ายหน้า</h3><p>เลือกกลุ่ม <b>คลังสินค้า</b> แล้วใส่ PIN ของกลุ่ม (ตัวพิมพ์เล็กหรือใหญ่ก็ได้)</p></div></li>
+      <li><div><h3>เลือกชื่อตัวเอง</h3><p>คุณจรินทร มีเจริญ หรือ ชาญวิทย์ สีสะอาด ระบบบันทึกชื่อนี้ทุกครั้งที่ยืนยัน ย้าย หรือปิดงาน</p></div></li>
+    </ol>
+    <p class="note info">มือถือหรือคอมพิวเตอร์เครื่องนั้นจะจำไว้ ครั้งต่อไปเข้าได้ทันที ถ้าใช้เครื่องส่วนกลาง กดชื่อที่มุมขวาบน (✕) เพื่อออกทุกครั้ง</p>
+    <p class="note warn">ห้ามบอก PIN กับคนนอกกลุ่ม ถ้าใส่ PIN ผิดเกิน 10 ครั้งใน 15 นาที ระบบล็อกส่วนนี้ 15 นาที</p>
+  </section>
+
+  <section>
+    <h2>งานประจำวัน</h2>
+    <ol class="steps">
+      <li><div><h3>เช้า: เปิดแท็บ "งานส่ง"</h3><p>ตัวเลขสีแดงคืองานที่ยังรอยืนยัน ดูหัวข้อ "งานที่ต้องจัดใหม่" และ "เลยวันส่งแล้ว ยังไม่ปิด" ก่อน</p></div></li>
+      <li><div><h3>ระหว่างวัน: ยืนยันงานของพรุ่งนี้ให้ครบก่อน 16:00 น.</h3><p>กด "ยืนยัน" แล้วเลือกรถ ระบบเลือกรถตามตารางรอบรถไว้ให้แล้ว เปลี่ยนได้</p></div></li>
+      <li><div><h3>ดูแท็บ "รออนุมัติ"</h3><p>งานยอดต่ำกว่า 3,000 ที่อยู่นอกเส้นทาง คลังต้องใส่รถและวันส่งแล้วกดอนุมัติฝั่งคลัง จากนั้น COO อนุมัติต่อ</p></div></li>
+      <li><div><h3>เย็น: แท็บ "ใบงาน/ปิดรอบ" เลือกวันพรุ่งนี้ แล้วพิมพ์ใบงาน</h3><p>A4 หนึ่งแผ่นต่อคัน ถ้าขึ้น "ยังไม่ยืนยัน X" แปลว่ายังมีงานค้าง ให้ยืนยันก่อนพิมพ์</p></div></li>
+      <li><div><h3>รถกลับเข้าคลัง: กด "ปิดรอบ"</h3><p>ดูใบงานที่คนขับนำกลับ ติ๊กจุดที่ส่งไม่สำเร็จพร้อมเหตุผล จุดที่เหลือเป็น "จัดส่งเรียบร้อย" ทั้งหมด</p></div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>ปุ่มในการ์ดแต่ละงาน</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>ปุ่ม</th><th>ใช้เมื่อ</th><th>คนขอเห็นอะไร</th></tr></thead>
+      <tbody>
+        <tr><td><b>ยืนยัน</b></td><td>รับงานและกำหนดรถแล้ว</td><td>สถานะเป็น "ยืนยันแล้ว"</td></tr>
+        <tr><td><b>ย้ายวัน/รถ</b></td><td>รถเต็ม ลูกค้าเลื่อน หรือรวมเส้นทางใหม่ ต้องใส่เหตุผล</td><td>กล่องสีส้ม "ย้ายวัน: เหตุผล" และวันส่งใหม่</td></tr>
+        <tr><td><b>ยกเลิก</b></td><td>ไม่รับงานนี้ ต้องใส่เหตุผล</td><td>สถานะ "ยกเลิก" พร้อมเหตุผล</td></tr>
+        <tr><td><b>ส่งไม่สำเร็จ</b></td><td>ใช้กับงานรายเดียว ถ้าทั้งคันให้ใช้ "ปิดรอบ"</td><td>สถานะ "ส่งไม่สำเร็จ" พร้อมเหตุผล</td></tr>
+        <tr><td><b>แก้ค่าส่ง/TR</b></td><td>ใส่เลขที่ TR หรือปรับค่าส่ง (เช่น สินค้ากลุ่มกระดาษ)</td><td>ค่าส่งใหม่</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>ป้ายที่ต้องสังเกต</h2>
+    <div class="tbl"><table>
+      <tbody>
+        <tr><td><span class="pill p-warn">เก็บค่าส่งต่ำกว่านโยบาย</span></td><td>สาขาลดหรืองดค่าส่ง เหตุผลอยู่ในบรรทัด "ค่าส่ง"</td></tr>
+        <tr><td><span class="pill p-info">กระดาษ/Low Margin</span></td><td>ระบบไม่คิดค่าส่งให้ คลังพิจารณาเป็นรายกรณี แล้วกด "แก้ค่าส่ง/TR"</td></tr>
+        <tr><td><b>นอกรอบ/ด่วน — ยังไม่มีรถ</b></td><td>สาขาขอวันที่ไม่มีรอบประจำ คลังต้องเลือกรถตอนยืนยัน (รถสำรอง ฮบ 1373)</td></tr>
+        <tr><td><b>แถบแดงซ้ายการ์ด</b></td><td>เลยวันส่งแล้วแต่ยังไม่ปิดงาน</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>รายชื่อใหม่</h2>
+    <p>พนักงานที่ไม่มีชื่อในรายการจะเพิ่มชื่อเอง ชื่อนั้นขึ้นที่แท็บ <b>"รายชื่อใหม่"</b></p>
+    <ul class="rules">
+      <li><b>ยืนยันชื่อ</b> ถ้าเป็นพนักงานจริงและชื่อไม่ซ้ำ</li>
+      <li><b>แก้ชื่อ</b> ถ้าเป็นคนเดิมแต่สะกดต่าง เช่น "ป๊อป" กับ "pop" ให้แก้เป็นชื่อเดียวกับที่มีอยู่</li>
+      <li><b>ปิดชื่อนี้</b> ถ้าไม่ใช่พนักงาน หรือเพิ่มผิด</li>
+    </ul>
+  </section>
+
+  <section class="box">
+    <h2>ตั้งค่าในชีตฐานข้อมูล (เฉพาะผู้ดูแล)</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>แท็บ</th><th>ใช้ทำอะไร</th></tr></thead>
+      <tbody>
+        <tr><td><b>ตารางรอบรถ</b></td><td>เปลี่ยนรอบ: เพิ่มแถวชุดใหม่ทั้งชุด ใส่ "เริ่มใช้" เป็นวันที่ (ค.ศ. เช่น 2026-11-01) ห้ามลบชุดเก่า งานที่จองไว้แต่ตารางใหม่ไม่ผ่านจะขึ้นใน "งานที่ต้องจัดใหม่"</td></tr>
+        <tr><td><b>วันหยุด</b></td><td>ใส่วันที่ (ค.ศ.) กับชื่อวันหยุด วันนั้นจะจองไม่ได้</td></tr>
+        <tr><td><b>ตั้งค่า</b></td><td>pilotBranches = สาขาที่เปิดใช้ (คั่นด้วย , เว้นว่าง = ทุกสาขา) · onRouteKm = ระยะที่ถือว่าอยู่บนเส้นทาง · cutoffHour = เวลาตัดรอบ</td></tr>
+        <tr><td><b>รถ / พนักงาน / สาขา</b></td><td>เพิ่มหรือแก้รถ คนขับ ชื่อพนักงาน ผู้จัดการเขต และพิกัดสาขา</td></tr>
+        <tr><td><b>คำขอ / ประวัติการแก้ไข</b></td><td>ข้อมูลจริงทั้งหมด ดูได้ แต่อย่าแก้ในชีต ให้แก้ผ่านหน้าเว็บ</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note warn">ห้ามสลับลำดับคอลัมน์ หรือแทรกคอลัมน์กลางตาราง ระบบอ่านตามตำแหน่งคอลัมน์</p>
+  </section>
+</div></main>

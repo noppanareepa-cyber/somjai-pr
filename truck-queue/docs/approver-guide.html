@@ -1,0 +1,135 @@
+<title>คู่มือผู้อนุมัติรอบรถ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;600&display=swap">
+<style>
+  /* Layout: คอลัมน์เดียวอ่านบนมือถือ — แถบหัวสีเขียวสมใจ, ขั้นตอนเป็นลำดับจริง, ตารางสำหรับปุ่มและสถานะ */
+  :root {
+    --bg: #f5f8f5; --surface: #ffffff; --fg: #1b2620; --muted: #5d6b63; --line: #d9e3dc;
+    --brand: #1f7a3a; --brand-soft: #e3f1e6; --on-brand: #ffffff;
+    --warn: #8a5300; --warn-soft: #fff1d9; --bad: #a3261d; --bad-soft: #fbe7e5; --info: #1d5aa0; --info-soft: #e5eefa;
+    --display: 'Anuphan', 'Sarabun', 'Leelawadee UI', 'Thonburi', sans-serif;
+    --body: 'Sarabun', 'Leelawadee UI', 'Thonburi', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #111814; --surface: #18221c; --fg: #e4ece6; --muted: #9fb0a5; --line: #2c3a31;
+    --brand: #4fb06c; --brand-soft: #1d3324; --on-brand: #0d1a11;
+    --warn: #f0b85c; --warn-soft: #3a2c12; --bad: #f08a80; --bad-soft: #3d1c19; --info: #8ab8f0; --info-soft: #172a40;
+    color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #111814; --surface: #18221c; --fg: #e4ece6; --muted: #9fb0a5; --line: #2c3a31;
+    --brand: #4fb06c; --brand-soft: #1d3324; --on-brand: #0d1a11;
+    --warn: #f0b85c; --warn-soft: #3a2c12; --bad: #f08a80; --bad-soft: #3d1c19; --info: #8ab8f0; --info-soft: #172a40;
+    color-scheme: dark; }
+  body { background: var(--bg); color: var(--fg); font: 17px/1.7 var(--body); }
+  .band { background: var(--brand); color: var(--on-brand); }
+  .wrap { max-width: 720px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  header .wrap { padding-block: 28px 24px; }
+  .eyebrow { font: 600 14px/1 var(--display); letter-spacing: .06em; opacity: .85; }
+  h1 { font: 700 clamp(28px, 7vw, 38px)/1.25 var(--display); margin: 8px 0 6px; text-wrap: balance; }
+  header p { margin: 0; opacity: .92; }
+  main .wrap { padding-block: 8px 48px; display: grid; gap: 28px; }
+  h2 { font: 700 22px/1.35 var(--display); margin: 0 0 10px; text-wrap: balance; }
+  h3 { font: 600 18px/1.4 var(--display); margin: 0 0 4px; }
+  p { margin: 0 0 10px; }
+  section > :last-child { margin-bottom: 0; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start; }
+  .steps li::before { content: counter(s); width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: var(--on-brand);
+    font: 700 16px/32px var(--display); text-align: center; }
+  .steps li > div { min-width: 0; }
+  .steps p { margin: 0; color: var(--muted); }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .note { border-radius: 10px; padding: 12px 14px; margin: 10px 0 0; }
+  .note.warn { background: var(--warn-soft); color: var(--warn); }
+  .note.info { background: var(--info-soft); color: var(--info); }
+  .tbl { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 15px/1.4 var(--display); color: var(--muted); }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .pill { display: inline-block; font: 600 14px/1.5 var(--display); padding: 1px 10px; border-radius: 999px; white-space: nowrap; }
+  .p-info { background: var(--info-soft); color: var(--info); } .p-warn { background: var(--warn-soft); color: var(--warn); }
+  .p-ok { background: var(--brand-soft); color: var(--brand); } .p-bad { background: var(--bad-soft); color: var(--bad); }
+  .p-mute { background: var(--line); color: var(--muted); }
+  .rules { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .rules li { padding-left: 18px; position: relative; }
+  .rules li::before { content: ''; position: absolute; left: 2px; top: .7em; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+  .formula { font: 600 17px/1.6 var(--display); background: var(--brand-soft); color: var(--fg); border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+  details { border-bottom: 1px solid var(--line); padding: 10px 0; }
+  summary { cursor: pointer; font: 600 17px/1.5 var(--display); }
+  details p { margin: 8px 0 0; color: var(--muted); }
+  .copy { display: grid; gap: 10px; }
+  .copy pre { margin: 0; white-space: pre-wrap; font: 16px/1.65 var(--body); background: var(--bg); border: 1px dashed var(--line); border-radius: 10px; padding: 14px; }
+  button { font: 600 16px/1 var(--display); background: var(--brand); color: var(--on-brand); border: 0; border-radius: 10px; padding: 12px 16px; cursor: pointer; justify-self: start; }
+  button:focus-visible, summary:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+  .muted { color: var(--muted); font-size: 15px; }
+  .flow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+  .lane { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+  .lane b { display: block; font: 600 15px/1.4 var(--display); color: var(--muted); margin-bottom: 6px; }
+  .lane span { font: 600 17px/1.6 var(--display); }
+  .join { grid-column: 1 / -1; text-align: center; font: 600 16px/1.5 var(--display); background: var(--brand-soft); border-radius: 12px; padding: 10px; }
+  @media (max-width: 420px) { .flow { grid-template-columns: 1fr; } }
+</style>
+
+<header class="band"><div class="wrap">
+  <div class="eyebrow">ร้านสมใจ · สำหรับผู้จัดการเขต CEO และ COO</div>
+  <h1>วิธีอนุมัติคำขอส่งยอดต่ำกว่า 3,000 บาท</h1>
+  <p>ใช้หน้าเว็บเดียวกับสาขา เข้าด้วย PIN ของตำแหน่ง ไม่ต้องล็อกอิน</p>
+</div></header>
+
+<main><div class="wrap">
+  <section>
+    <h2>งานไหนต้องอนุมัติ</h2>
+    <p>คำขอส่งลูกค้าที่<b>ยอดต่ำกว่า 3,000 บาท</b> และลูกค้า<b>อยู่นอกเส้นทางที่รถผ่าน</b> (ห่างจากสาขาที่รถแวะวันนั้นเกิน 5 กม.) ตามนโยบายค่าขนส่ง COO009/69</p>
+    <div class="flow">
+      <div class="lane"><b>ฝั่งขาย</b><span>ผู้จัดการเขต → CEO</span></div>
+      <div class="lane"><b>ฝั่งคลัง</b><span>คลัง (ใส่รถ/วัน) → COO</span></div>
+      <div class="join">CEO และ COO อนุมัติครบ → "ยืนยันแล้ว" · ขั้นใดไม่อนุมัติ → จบทันที</div>
+    </div>
+    <p class="muted">สองฝั่งทำพร้อมกันได้ CEO ต้องรอผู้จัดการเขตก่อน และ COO ต้องรอคลังก่อน</p>
+  </section>
+
+  <section>
+    <h2>เข้าใช้งาน</h2>
+    <ol class="steps">
+      <li><div><h3>เปิดลิงก์ระบบขอคิวรถ</h3><p>ลิงก์เดียวกับที่สาขาใช้</p></div></li>
+      <li><div><h3>กด "สำหรับคลัง / ผู้อนุมัติ" ที่ท้ายหน้า</h3><p>เลือกกลุ่ม <b>ผู้จัดการเขต / CEO / COO ตามตำแหน่ง</b> แล้วใส่ PIN ของกลุ่ม (ตัวพิมพ์เล็กหรือใหญ่ก็ได้)</p></div></li>
+      <li><div><h3>เลือกชื่อตัวเอง</h3><p>ผู้จัดการเขตเลือกชื่อตัวเอง จะเห็นเฉพาะคำขอของสาขาในเขตตัวเอง · CEO และ COO ไม่ต้องเลือกชื่อ</p></div></li>
+    </ol>
+    <p class="note info">มือถือหรือคอมพิวเตอร์เครื่องนั้นจะจำไว้ ครั้งต่อไปเข้าได้ทันที ถ้าใช้เครื่องส่วนกลาง กดชื่อที่มุมขวาบน (✕) เพื่อออกทุกครั้ง</p>
+    <p class="note warn">ห้ามบอก PIN กับคนนอกกลุ่ม ถ้าใส่ PIN ผิดเกิน 10 ครั้งใน 15 นาที ระบบล็อกส่วนนี้ 15 นาที</p>
+  </section>
+
+  <section>
+    <h2>อนุมัติหรือไม่อนุมัติ</h2>
+    <ol class="steps">
+      <li><div><h3>เปิดแท็บ "รออนุมัติ"</h3><p>เห็นเฉพาะรายการที่ถึงคิวของคุณ การ์ดที่มีแถบแดงคือส่งพรุ่งนี้หรือเร็วกว่า ให้ดูก่อน</p></div></li>
+      <li><div><h3>อ่านรายละเอียด</h3><p>สาขา คนขอ ระยะทาง มูลค่า ค่าส่งตามนโยบายและที่เก็บจริง และสถานะการอนุมัติของอีกฝั่ง</p></div></li>
+      <li><div><h3>กด "อนุมัติ" หรือ "ไม่อนุมัติ"</h3><p>ไม่อนุมัติต้องใส่เหตุผล พนักงานสาขาจะเห็นเหตุผลนี้</p></div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>เส้นตาย</h2>
+    <ul class="rules">
+      <li>ต้องอนุมัติครบก่อน <b>16:00 น. ของวันก่อนวันส่ง</b> ไม่อย่างนั้นระบบจะเลื่อนงานไปรอบถัดไปที่ยังว่างโดยอัตโนมัติ และแจ้งเหตุผลให้สาขาเห็น</li>
+      <li>ระบบ<b>ไม่ส่งแจ้งเตือน</b> แนะนำให้เปิดแท็บ "รออนุมัติ" อย่างน้อยวันละ 2 ครั้ง เช่น 10:00 และ 14:00 น.</li>
+    </ul>
+  </section>
+
+  <section class="box">
+    <h2>ผู้จัดการเขต (Memo HR-2026-091)</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>เขต</th><th>ผู้จัดการ</th><th>สาขา</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>อัฐ</td><td>สามย่าน, MBK, สยามกิตติ์, พระราม 9, เดอะไนน์ พระราม 9, สายสี่</td></tr>
+        <tr><td>2</td><td>เรย์</td><td>มหาสารคาม, โคราช, ศาลายา, หาดใหญ่, ซัสโก้ (พุทธบูชา)</td></tr>
+        <tr><td>3</td><td>ต่าย</td><td>ยิ่งเจริญ, อมรพันธุ์, ลาซาล, พาราไดซ์, Big C อ่อนนุช, อ้อมน้อย, หัวหิน</td></tr>
+        <tr><td>4</td><td>โจ้</td><td>ร้าน 2, ร้าน 3, เชียงใหม่, ราชพฤกษ์, ไร่ขิง, กัลปพฤกษ์, บางใหญ่, ตลาดธนบุรี</td></tr>
+        <tr><td>5</td><td>ปุ้ม</td><td>โลตัสนอร์ธ, รังสิต, Mingle รังสิต, เดอะไนน์ ติวานนท์, ออนไลน์</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted" style="margin-top:10px">ช่วงทดลองเปิดใช้เฉพาะสาขาสายสี่ (เขต 1)</p>
+  </section>
+</div></main>
