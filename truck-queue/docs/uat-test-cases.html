@@ -1,0 +1,297 @@
+<title>ทดสอบระบบขอคิวรถ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Sarabun:wght@400;600&display=swap">
+<style>
+  /* Layout: แถบสรุปผลติดบนสุด + ตัวกรอง, ด้านล่างเป็นการ์ดเคสทดสอบเรียงตามหมวด */
+  :root {
+    --bg: #f5f8f5; --surface: #ffffff; --fg: #1b2620; --muted: #5d6b63; --line: #d9e3dc;
+    --brand: #1f7a3a; --brand-soft: #e3f1e6; --on-brand: #ffffff;
+    --pass: #1f7a3a; --pass-soft: #e3f1e6; --fail: #a3261d; --fail-soft: #fbe7e5;
+    --skip: #6b6f6c; --skip-soft: #eceeec; --warn: #8a5300; --warn-soft: #fff1d9;
+    --display: 'Anuphan', 'Sarabun', 'Leelawadee UI', 'Thonburi', sans-serif;
+    --body: 'Sarabun', 'Leelawadee UI', 'Thonburi', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #111814; --surface: #18221c; --fg: #e4ece6; --muted: #9fb0a5; --line: #2c3a31;
+    --brand: #4fb06c; --brand-soft: #1d3324; --on-brand: #0d1a11;
+    --pass: #6cc488; --pass-soft: #1d3324; --fail: #f08a80; --fail-soft: #3d1c19;
+    --skip: #a7aea9; --skip-soft: #262c28; --warn: #f0b85c; --warn-soft: #3a2c12; color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #111814; --surface: #18221c; --fg: #e4ece6; --muted: #9fb0a5; --line: #2c3a31;
+    --brand: #4fb06c; --brand-soft: #1d3324; --on-brand: #0d1a11;
+    --pass: #6cc488; --pass-soft: #1d3324; --fail: #f08a80; --fail-soft: #3d1c19;
+    --skip: #a7aea9; --skip-soft: #262c28; --warn: #f0b85c; --warn-soft: #3a2c12; color-scheme: dark; }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.65 var(--body); }
+  .wrap { max-width: 860px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  header.band { background: var(--brand); color: var(--on-brand); }
+  header .wrap { padding-block: 24px 20px; }
+  .eyebrow { font: 600 14px/1 var(--display); letter-spacing: .06em; opacity: .85; }
+  h1 { font: 700 clamp(26px, 6vw, 34px)/1.25 var(--display); margin: 8px 0 6px; text-wrap: balance; }
+  header p { margin: 0; opacity: .92; }
+  .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 3; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .bar .wrap { padding-block: 10px; display: grid; gap: 8px; }
+  .meter { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--skip-soft); }
+  .meter i { display: block; height: 100%; }
+  .counts { display: flex; flex-wrap: wrap; gap: 6px 14px; font: 600 15px/1.4 var(--display); font-variant-numeric: tabular-nums; }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filters button, .filters select { font: 600 14px/1 var(--display); border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 8px 12px; cursor: pointer; }
+  .filters button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+  main .wrap { padding-block: 16px 48px; display: grid; gap: 22px; }
+  h2 { font: 700 20px/1.35 var(--display); margin: 0 0 4px; }
+  .group-note { color: var(--muted); margin: 0 0 10px; font-size: 15px; }
+  .cases { display: grid; gap: 10px; }
+  .case { background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+  .case[data-s="pass"] { border-left-color: var(--pass); }
+  .case[data-s="fail"] { border-left-color: var(--fail); }
+  .case[data-s="skip"] { border-left-color: var(--skip); }
+  .head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .cid { font: 700 14px/1 var(--display); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .title { font: 600 17px/1.45 var(--display); flex: 1; min-width: 200px; }
+  .tag { font: 600 13px/1.5 var(--display); padding: 1px 8px; border-radius: 999px; background: var(--skip-soft); color: var(--muted); white-space: nowrap; }
+  .tag.hi { background: var(--warn-soft); color: var(--warn); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+  .grid2 > div { min-width: 0; }
+  .lbl { font: 600 13px/1.4 var(--display); color: var(--muted); letter-spacing: .03em; }
+  ol.st { margin: 2px 0 0; padding-left: 20px; }
+  .exp { margin: 2px 0 0; }
+  @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
+  .act { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
+  .act button { font: 600 15px/1 var(--display); border-radius: 10px; padding: 9px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+  .act button.pass[aria-pressed="true"] { background: var(--pass); border-color: var(--pass); color: var(--on-brand); }
+  .act button.fail[aria-pressed="true"] { background: var(--fail); border-color: var(--fail); color: #fff; }
+  .act button.skip[aria-pressed="true"] { background: var(--skip); border-color: var(--skip); color: var(--bg); }
+  .act button:disabled { opacity: .45; cursor: default; }
+  .who { color: var(--muted); font-size: 14px; }
+  textarea { width: 100%; margin-top: 8px; font: 15px/1.5 var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 40px; }
+  .notice { border-radius: 10px; padding: 10px 14px; background: var(--warn-soft); color: var(--warn); }
+  button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+</style>
+
+<header class="band"><div class="wrap">
+  <div class="eyebrow">ร้านสมใจ · ทดสอบก่อนใช้งานจริง (UAT)</div>
+  <h1>ทดสอบระบบขอคิวรถคลังสินค้า</h1>
+  <p>ทำตามขั้นตอนในแต่ละเคส แล้วกด ผ่าน / ไม่ผ่าน / ข้าม · ถ้าไม่ผ่าน เขียนสิ่งที่เห็นจริงในช่องหมายเหตุ ทุกคนในทีมเห็นผลร่วมกัน</p>
+</div></header>
+
+<div class="bar"><div class="wrap">
+  <div class="meter" id="meter" aria-hidden="true"></div>
+  <div class="counts" id="counts">กำลังโหลดผลทดสอบ…</div>
+  <div class="filters" id="filters">
+    <button type="button" data-f="all" aria-pressed="true">ทั้งหมด</button>
+    <button type="button" data-f="todo" aria-pressed="false">ยังไม่ทดสอบ</button>
+    <button type="button" data-f="fail" aria-pressed="false">ไม่ผ่าน</button>
+    <select id="who" aria-label="กรองตามผู้ทดสอบ">
+      <option value="">ทุกบทบาท</option>
+      <option value="แอดมิน">แอดมิน</option>
+      <option value="สาขา">สาขา</option>
+      <option value="คลัง">คลัง</option>
+      <option value="ผู้อนุมัติ">ผู้อนุมัติ</option>
+    </select>
+  </div>
+</div></div>
+
+<main><div class="wrap">
+  <div class="notice" id="ro" hidden>ดูได้อย่างเดียว ยังบันทึกผลไม่ได้ ต้องล็อกอิน claude.ai และได้รับสิทธิ์แก้ไขหน้านี้จากเจ้าของ</div>
+  <div id="list"></div>
+</div></main>
+
+<script>
+var GROUPS = [
+  { id: 'A', name: 'ติดตั้งและตั้งค่า', note: 'ทำครั้งเดียวโดยผู้ดูแลระบบ (บัญชี monpriya@somjai.co.th)' },
+  { id: 'B', name: 'สาขา: เข้าใช้ครั้งแรก', note: 'ใช้มือถือ เปิดลิงก์ในหน้าต่างไม่ระบุตัวตน' },
+  { id: 'C', name: 'สาขา: ขอคิวส่งลูกค้า', note: 'ใช้ลูกค้าจริงที่เคยส่ง เทียบระยะกับ Google Maps (ขับรถ จากสาขาสายสี่)' },
+  { id: 'D', name: 'สาขา: ติดตามคำขอ', note: '' },
+  { id: 'E', name: 'คลัง: จัดการงาน', note: 'เข้า "สำหรับคลัง / ผู้อนุมัติ" ด้วย PIN คลัง' },
+  { id: 'F', name: 'คลัง: ใบงานและปิดรอบ', note: '' },
+  { id: 'G', name: 'การอนุมัติ (ยอด < 3,000 นอกเส้นทาง)', note: 'ต้องใช้ PIN ผจก.เขต, CEO, COO และคลัง' },
+  { id: 'H', name: 'ข้อมูลในชีต และกรณีพิเศษ', note: 'ทำท้ายสุด' }
+];
+
+// [รหัส, บทบาท, สำคัญ, ชื่อเคส, ขั้นตอน[], ผลที่ต้องได้]
+var CASES = [
+  ['A1','แอดมิน',1,'ชีตฐานข้อมูลครบ',['เปิด Google Sheet ฐานข้อมูล'],'มีแท็บ คำขอ, ประวัติการแก้ไข, สาขา, พนักงาน, รถ, ตารางรอบรถ, วันหยุด, ค่าส่ง, ตั้งค่า'],
+  ['A2','แอดมิน',1,'พิกัดสาขาสายสี่',['แท็บ สาขา → แถว 00005'],'คอลัมน์ lat/lng มีตัวเลข (ประมาณ 13.7 / 100.4) และจังหวัดถูกต้อง'],
+  ['A3','แอดมิน',1,'ไม่มี PIN ค้างในโค้ด',['Apps Script → ค้นหา function setPins'],'ทั้ง 4 ช่องเป็น \'\' (ว่าง)'],
+  ['A4','แอดมิน',1,'ตั้งเวลาเลื่อนงานอัตโนมัติ',['Apps Script → ไอคอนนาฬิกา (ทริกเกอร์) ด้านซ้าย'],'มีทริกเกอร์ autoPostpone รายวัน เวลา 16:00–17:00'],
+  ['A5','แอดมิน',1,'เปิดเว็บได้โดยไม่ล็อกอิน',['เปิดลิงก์ /exec ในหน้าต่างไม่ระบุตัวตน (Ctrl+Shift+N)'],'เห็นหน้า "คุณคือใคร" ไม่ถูกขอให้ล็อกอิน'],
+  ['A6','แอดมิน',0,'ใส่วันหยุดบริษัท',['แท็บ วันหยุด ใส่วันที่ (ค.ศ.) ปีนี้'],'วันหยุดครบตามประกาศบริษัท'],
+
+  ['B1','สาขา',1,'เลือกสาขาและชื่อ',['เปิดลิงก์','เลือกสาขา สายสี่ (00005)','เลือกชื่อ → เริ่มใช้งาน'],'เข้าหน้าฟอร์ม "ขอคิวส่งลูกค้า" มุมขวาบนขึ้นชื่อ · สาขา'],
+  ['B2','สาขา',0,'เพิ่มชื่อใหม่',['กดชื่อมุมขวาบนเพื่อเปลี่ยน','เลือกสายสี่ → "+ ไม่มีชื่อฉันในรายการ"','พิมพ์ชื่อทดสอบ เช่น "ทดสอบ1"'],'เข้าใช้งานได้ทันทีด้วยชื่อใหม่'],
+  ['B3','สาขา',0,'เครื่องจำชื่อ',['ปิดแท็บ แล้วเปิดลิงก์ใหม่ (หน้าต่างปกติ)'],'ไม่ต้องเลือกชื่อซ้ำ'],
+  ['B4','สาขา',0,'สาขาที่ยังไม่เปิดใช้',['เปลี่ยนชื่อเป็นพนักงานสาขาอื่น เช่น ราชพฤกษ์'],'ขึ้นข้อความ "ยังไม่เปิดใช้ระบบขอคิว" กรอกฟอร์มไม่ได้'],
+
+  ['C1','สาขา',1,'ระยะทางถูกต้อง',['วางลิงก์ Google Maps ลูกค้าจริง','ใส่มูลค่า 5500, จำนวน 5 ลัง, ของอยู่ที่โกดัง','กด "ตรวจระยะทาง ค่าส่ง และวันส่ง"','เปิด Google Maps หาเส้นทางขับรถจากสาขาสายสี่ไปลูกค้า'],'ระยะในระบบต่างจาก Google Maps ไม่เกิน 10% · จังหวัดถูก · "ดูบนแผนที่" ชี้ที่ลูกค้า'],
+  ['C2','สาขา',1,'ค่าส่งตามนโยบาย',['ลูกค้าระยะประมาณ 30 กม. ใส่มูลค่า 5500','เปลี่ยนมูลค่าเป็น 20000 (ไม่ต้องกดคำนวณใหม่)'],'5,500 → ฟรี 10 กม. คิดส่วนเกินทุก 10 กม. ×120 · 20,000 → ฟรี 50 กม. ค่าส่ง 0'],
+  ['C3','สาขา',1,'ปฏิทินตามรอบรถ',['ดูวันที่ให้เลือก'],'มีเฉพาะวันพุธและวันเสาร์ (รอบที่ผ่านสายสี่) ไม่มีวันอาทิตย์ และวันหยุด'],
+  ['C4','สาขา',1,'ส่งคำขอปกติ',['เลือกวันส่ง','ใส่เบอร์ผู้รับ เวลาสะดวกรับ เลข TR','กด "ส่งคำขอ"'],'ได้เลขคิว Q69-xx-xxxx สถานะ "รอยืนยัน"'],
+  ['C5','สาขา',1,'ช่องที่ต้องกรอก',['กดส่งโดยเว้นชื่อลูกค้า / มูลค่า / จำนวน / ของอยู่ที่ ทีละช่อง'],'ส่งไม่ได้ และบอกว่าต้องกรอกช่องไหน'],
+  ['C6','สาขา',1,'ลูกค้าต่างจังหวัด',['วางลิงก์ลูกค้าต่างจังหวัด เช่น ฉะเชิงเทรา หรือ อยุธยา','กดตรวจ'],'ขึ้นข้อความให้ใช้ "ใบแจ้งขอรอบรถส่งสินค้าลูกค้าต่างจังหวัด" ส่งคำขอไม่ได้'],
+  ['C7','สาขา',1,'ยอดต่ำกว่า 3,000 ใกล้เส้นทาง',['ลูกค้าห่างสาขาสายสี่ไม่เกิน 5 กม. มูลค่า 2000'],'วันส่งขึ้น "อยู่บนเส้นทาง" ไม่มีป้ายต้องอนุมัติ ส่งแล้วสถานะ "รอยืนยัน"'],
+  ['C8','สาขา',1,'ยอดต่ำกว่า 3,000 นอกเส้นทาง',['ลูกค้าไกลจากสาขามากกว่า 5 กม. มูลค่า 2000','เลือกวัน แล้วส่ง'],'มีป้าย "ต้องอนุมัติ" และข้อความลำดับผู้อนุมัติ ส่งแล้วสถานะ "รออนุมัติ"'],
+  ['C9','สาขา',1,'เก็บค่าส่งต่ำกว่านโยบาย',['เคสที่มีค่าส่งตามนโยบาย > 0','แก้ค่าส่งที่เก็บเป็น 0 แล้วกดส่งโดยไม่ใส่เหตุผล','ใส่เหตุผล แล้วส่งอีกครั้ง'],'ครั้งแรกส่งไม่ได้ ครั้งที่สองส่งได้'],
+  ['C10','สาขา',0,'สินค้ากลุ่มกระดาษ / Low Margin',['ติ๊ก "สินค้ากลุ่มกระดาษ / Low Margin"'],'ไม่แสดงค่าส่งตามนโยบาย ช่องค่าส่งว่าง ส่งได้โดยไม่ต้องใส่เหตุผล'],
+  ['C11','สาขา',0,'นอกรอบ / ด่วน',['ติ๊ก "นอกรอบ / ด่วน"','เลือกวันที่ที่ไม่ใช่วันรอบ'],'ส่งได้ ในรายการขึ้น "นอกรอบ/ด่วน" ไม่มีทะเบียนรถ'],
+  ['C12','สาขา',0,'ไม่มีลิงก์ ใช้ที่อยู่',['เว้นลิงก์ พิมพ์ที่อยู่ลูกค้าเต็ม','กดตรวจ'],'หาตำแหน่งเจอ และ "ดูบนแผนที่" ชี้ใกล้ที่อยู่'],
+  ['C13','สาขา',0,'รอบเต็ม',['ส่งคำขอทดสอบให้ครบจำนวนจุดของวันหนึ่ง (สายสี่ = 5 จุด)','กดตรวจอีกครั้ง'],'วันนั้นขึ้น "เต็มแล้ว" กดเลือกไม่ได้'],
+  ['C14','สาขา',0,'หลังเวลาตัดรอบ',['ทดสอบหลัง 16:00 น.'],'วันพรุ่งนี้ไม่อยู่ในปฏิทิน (ถ้าพรุ่งนี้เป็นวันรอบ)'],
+
+  ['D1','สาขา',1,'ดูคำขอของสาขา',['แท็บ "คำขอของสาขา"'],'เห็นคำขอที่ส่ง ทั้งของตัวเองและเพื่อนในสาขา พร้อมสถานะ วันส่ง ค่าส่ง'],
+  ['D2','สาขา',1,'ยกเลิกเองก่อนยืนยัน',['กด "ยกเลิกคำขอ" ที่รายการ "รอยืนยัน"'],'สถานะเป็น "ยกเลิก" และที่ว่างในรอบนั้นกลับมา'],
+  ['D3','สาขา',1,'ยกเลิกไม่ได้หลังยืนยัน',['หาคำขอที่คลังยืนยันแล้ว (หลังทำ E2)'],'ไม่มีปุ่มยกเลิก'],
+  ['D4','สาขา',1,'เห็นเหตุผลเมื่อถูกย้ายวัน',['หลังคลังย้ายวัน (E3) เปิดคำขอนั้น'],'มีกล่องสีส้ม "ย้ายวัน: เหตุผล" และวันส่งใหม่'],
+
+  ['E1','คลัง',1,'เข้าส่วนคลัง',['กด "สำหรับคลัง / ผู้อนุมัติ"','เลือก คลังสินค้า ใส่ PIN ผิด 1 ครั้ง','ใส่ PIN ถูก แล้วเลือกชื่อ'],'PIN ผิดขึ้น "PIN ไม่ถูกต้อง" · PIN ถูกเข้าแท็บ "งานส่ง" ได้'],
+  ['E2','คลัง',1,'ยืนยันงาน',['หาคำขอ "รอยืนยัน" จาก C4','กด "ยืนยัน" เลือกรถ'],'สถานะ "ยืนยันแล้ว" ตัวเลขแดงลดลง'],
+  ['E3','คลัง',1,'ย้ายวัน/รถ',['กด "ย้ายวัน/รถ" เปลี่ยนวัน ไม่ใส่เหตุผล','ใส่เหตุผล แล้วบันทึก'],'ไม่ใส่เหตุผลบันทึกไม่ได้ · ใส่แล้วงานย้ายไปวันใหม่'],
+  ['E4','คลัง',1,'ยกเลิกโดยคลัง',['กด "ยกเลิก" ใส่เหตุผล'],'สถานะ "ยกเลิก" สาขาเห็นเหตุผล'],
+  ['E5','คลัง',0,'แก้ค่าส่ง / TR',['กด "แก้ค่าส่ง/TR" ใส่ TR และค่าส่งใหม่'],'การ์ดแสดงค่าใหม่'],
+  ['E6','คลัง',0,'ป้ายพิเศษ',['ดูการ์ดของ C9, C10, C11'],'ขึ้นป้าย "เก็บค่าส่งต่ำกว่านโยบาย", "กระดาษ/Low Margin" และ "นอกรอบ/ด่วน — ยังไม่มีรถ"'],
+  ['E7','คลัง',0,'งานด่วนต้องเลือกรถ',['ยืนยันงาน C11 เลือกรถสำรอง ฮบ 1373'],'สถานะ "ยืนยันแล้ว" มีทะเบียนรถ'],
+  ['E8','คลัง',0,'ตรวจชื่อใหม่',['แท็บ "รายชื่อใหม่" เห็นชื่อจาก B2','ลอง "แก้ชื่อ" หรือ "ปิดชื่อนี้"'],'ชื่อหายจากรายการรอตรวจ และรายชื่อในหน้าสาขาเปลี่ยนตาม'],
+  ['E9','คลัง',0,'งานที่ต้องจัดใหม่',['ในชีต ตารางรอบรถ เพิ่มชุดใหม่ที่เริ่มใช้ก่อนวันส่งของงานทดสอบ และไม่ผ่านสายสี่วันนั้น','เปิดแท็บ "งานส่ง"'],'งานนั้นขึ้นใต้ "งานที่ต้องจัดใหม่" · ทดสอบเสร็จให้ลบแถวทดสอบออก'],
+
+  ['F1','คลัง',1,'พิมพ์ใบงาน',['แท็บ "ใบงาน/ปิดรอบ" เลือกวันส่งของงานทดสอบ','กด "พิมพ์ใบงาน"'],'A4 หนึ่งแผ่นต่อคัน มีสาขาที่แวะ จุดส่ง เบอร์ เวลา ค่าส่งรวม ช่องเซ็น'],
+  ['F2','คลัง',1,'QR บนใบงาน',['สแกน QR แผนที่ของจุดส่งด้วยมือถือ','สแกน QR มุมขวาบน'],'QR แผนที่เปิด Google Maps ที่ลูกค้า · QR มุมบนเปิดใบงานบนมือถือ (อ่านอย่างเดียว)'],
+  ['F3','คลัง',1,'ปิดรอบ',['กด "ปิดรอบ" ติ๊กส่งไม่สำเร็จ 1 จุดพร้อมเหตุผล','กดปิดรอบ'],'จุดที่ติ๊กเป็น "ส่งไม่สำเร็จ" ที่เหลือเป็น "จัดส่งเรียบร้อย" สาขาเห็นสถานะใหม่'],
+  ['F4','คลัง',0,'ลิงก์ใบงานแก้ไขไม่ได้',['เปิดลิงก์ใบงาน แก้ตัวเลขวันที่ใน URL แล้วเปิด'],'ขึ้น "ลิงก์ใบงานไม่ถูกต้อง"'],
+
+  ['G1','ผู้อนุมัติ',1,'ผจก.เขตเห็นเฉพาะเขตตัวเอง',['เข้าด้วย PIN ผจก.เขต เลือกชื่อ อัฐ (เขต 1)','เข้าใหม่ เลือกชื่อ โจ้ (เขต 4)'],'อัฐเห็นงาน C8 ของสายสี่ · โจ้ไม่เห็น'],
+  ['G2','ผู้อนุมัติ',1,'CEO ต้องรอ ผจก.เขต',['เข้าด้วย PIN CEO ก่อนที่ ผจก.เขต อนุมัติ'],'ไม่เห็นงาน C8 ในแท็บ "รออนุมัติ"'],
+  ['G3','ผู้อนุมัติ',1,'อนุมัติครบทั้งสองฝั่ง',['ผจก.เขต อนุมัติ','คลัง อนุมัติ (เลือกรถ/วัน)','CEO อนุมัติ','COO อนุมัติ'],'หลัง COO และ CEO ครบ สถานะเป็น "ยืนยันแล้ว" · สาขาเห็น ✓ ทั้ง 4 ขั้น'],
+  ['G4','ผู้อนุมัติ',1,'ไม่อนุมัติ',['ส่งคำขอแบบ C8 อีกรายการ','COO หรือ ผจก.เขต กด "ไม่อนุมัติ" ไม่ใส่เหตุผล แล้วใส่เหตุผล'],'ไม่ใส่เหตุผลบันทึกไม่ได้ · สถานะ "ไม่อนุมัติ" สาขาเห็นเหตุผล'],
+  ['G5','ผู้อนุมัติ',0,'เลื่อนอัตโนมัติ 16:00',['ส่งคำขอแบบ C8 สำหรับวันรอบถัดไป ไม่ต้องอนุมัติ','รอหลัง 16:05 น. ของวันก่อนวันส่ง'],'งานย้ายไปรอบถัดไป เหตุผล "เลื่อนอัตโนมัติ…"'],
+
+  ['H1','แอดมิน',1,'บันทึกประวัติ',['แท็บ ประวัติการแก้ไข'],'ทุกการกระทำในเคสก่อนหน้ามีเวลา ผู้ทำ การกระทำ ครบ'],
+  ['H2','แอดมิน',1,'ข้อมูลคำขอในชีต',['แท็บ คำขอ ดูแถวที่ทดสอบ'],'เลขคิว รหัสสาขา 00005 (มีเลข 0) วันส่ง ระยะ ค่าส่ง ถูกต้อง'],
+  ['H3','คลัง',0,'ล็อกเมื่อ PIN ผิดเกิน 10 ครั้ง',['ทำเป็นเคสสุดท้าย: ใส่ PIN ผิด 10 ครั้ง','ใส่ PIN ถูก'],'ขึ้น "ระบบล็อกไว้ 15 นาที" (ทุกคนเข้าไม่ได้ 15 นาที)'],
+  ['H4','แอดมิน',1,'ล้างข้อมูลทดสอบ',['หลังทดสอบครบ ลบแถวทดสอบในแท็บ คำขอ และชื่อทดสอบในแท็บ พนักงาน'],'แท็บพร้อมใช้งานจริง']
+];
+
+var STATE = {}, PROFILES = {}, filter = 'all', who = '', db = null, user = null, canWrite = false;
+var LABEL = { pass: 'ผ่าน', fail: 'ไม่ผ่าน', skip: 'ข้าม' };
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+function when(iso) {
+  if (!iso) return '';
+  var d = new Date(iso);
+  return d.toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function renderCounts() {
+  var n = { pass: 0, fail: 0, skip: 0 }, total = CASES.length;
+  CASES.forEach(function (c) { var s = (STATE[c[0]] || {}).status; if (n[s] !== undefined) n[s]++; });
+  var todo = total - n.pass - n.fail - n.skip;
+  var crit = CASES.filter(function (c) { return c[2] && (STATE[c[0]] || {}).status !== 'pass'; }).length;
+  document.getElementById('counts').innerHTML =
+    '<span style="color:var(--pass)">ผ่าน ' + n.pass + '</span><span style="color:var(--fail)">ไม่ผ่าน ' + n.fail + '</span>' +
+    '<span style="color:var(--skip)">ข้าม ' + n.skip + '</span><span>ยังไม่ทดสอบ ' + todo + '</span>' +
+    '<span style="color:var(--warn)">เคสสำคัญที่ยังไม่ผ่าน ' + crit + '</span>';
+  var pct = function (x) { return (100 * x / total) + '%'; };
+  document.getElementById('meter').innerHTML = '<i style="width:' + pct(n.pass) + ';background:var(--pass)"></i>' +
+    '<i style="width:' + pct(n.fail) + ';background:var(--fail)"></i><i style="width:' + pct(n.skip) + ';background:var(--skip)"></i>';
+}
+
+function visible(c) {
+  var s = (STATE[c[0]] || {}).status;
+  if (who && c[1] !== who) return false;
+  if (filter === 'todo') return !s;
+  if (filter === 'fail') return s === 'fail';
+  return true;
+}
+
+function renderList() {
+  var out = '';
+  GROUPS.forEach(function (g) {
+    var cs = CASES.filter(function (c) { return c[0].charAt(0) === g.id && visible(c); });
+    if (!cs.length) return;
+    out += '<section><h2>' + g.id + ' · ' + esc(g.name) + '</h2>' + (g.note ? '<p class="group-note">' + esc(g.note) + '</p>' : '') + '<div class="cases">';
+    cs.forEach(function (c) {
+      var r = STATE[c[0]] || {};
+      var by = r.by ? ((PROFILES[r.by] && PROFILES[r.by].name) || 'สมาชิกทีม') : '';
+      out += '<article class="case" data-s="' + (r.status || '') + '" data-id="' + c[0] + '">' +
+        '<div class="head"><span class="cid">' + c[0] + '</span><span class="title">' + esc(c[3]) + '</span>' +
+        '<span class="tag">' + esc(c[1]) + '</span>' + (c[2] ? '<span class="tag hi">สำคัญ</span>' : '') + '</div>' +
+        '<div class="grid2"><div><div class="lbl">ขั้นตอน</div><ol class="st">' + c[4].map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ol></div>' +
+        '<div><div class="lbl">ผลที่ต้องได้</div><p class="exp">' + esc(c[5]) + '</p></div></div>' +
+        '<div class="act">' + ['pass', 'fail', 'skip'].map(function (k) {
+          return '<button type="button" class="' + k + '" data-k="' + k + '" aria-pressed="' + (r.status === k) + '"' + (canWrite ? '' : ' disabled') + '>' + LABEL[k] + '</button>';
+        }).join('') + (by ? '<span class="who">' + esc(by) + ' · ' + esc(when(r.at)) + '</span>' : '') + '</div>' +
+        '<textarea id="note-' + c[0] + '" placeholder="หมายเหตุ: ถ้าไม่ผ่าน เขียนสิ่งที่เห็นจริง (ข้อความ error, เลขคิว)"' + (canWrite ? '' : ' disabled') + '>' + esc(r.note || '') + '</textarea>' +
+        '</article>';
+    });
+    out += '</div></section>';
+  });
+  document.getElementById('list').innerHTML = out || '<p class="group-note">ไม่มีเคสตามตัวกรองนี้</p>';
+}
+
+function render() {
+  // เก็บข้อความที่กำลังพิมพ์ไว้ เมื่อมีผลจากคนอื่นเข้ามา
+  var a = document.activeElement, keep = a && a.tagName === 'TEXTAREA' ? { id: a.id, v: a.value, s: a.selectionStart } : null;
+  renderCounts(); renderList();
+  if (keep) { var t = document.getElementById(keep.id); if (t) { t.value = keep.v; t.focus(); t.setSelectionRange(keep.s, keep.s); } }
+}
+
+document.getElementById('filters').addEventListener('click', function (e) {
+  var b = e.target.closest('button[data-f]'); if (!b) return;
+  filter = b.dataset.f;
+  this.querySelectorAll('button[data-f]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+  renderList();
+});
+document.getElementById('who').addEventListener('change', function () { who = this.value; renderList(); });
+
+var saving = {};
+function save(id, patch) {
+  if (!db || !canWrite) return;
+  var cur = STATE[id] || {};
+  var next = { status: cur.status || '', note: cur.note || '' };
+  Object.keys(patch).forEach(function (k) { next[k] = patch[k]; });
+  if (next.status === cur.status && next.note === (cur.note || '')) return;
+  user.id().then(function (uid) {
+    next.by = uid || ''; next.at = new Date().toISOString();
+    STATE[id] = next; render();
+    var p = (saving[id] || Promise.resolve()).then(function () { return db.collection('results').doc(id).set(next); });
+    saving[id] = p.catch(function (err) {
+      document.getElementById('ro').hidden = false;
+      document.getElementById('ro').textContent = 'บันทึกผล ' + id + ' ไม่สำเร็จ: ' + ((err && err.message) || 'ไม่มีสิทธิ์แก้ไข') + ' · ขอสิทธิ์แก้ไขจากเจ้าของหน้านี้';
+    });
+  });
+}
+
+document.getElementById('list').addEventListener('click', function (e) {
+  var b = e.target.closest('button[data-k]'); if (!b || b.disabled) return;
+  var id = b.closest('.case').dataset.id;
+  var k = b.dataset.k;
+  var note = document.getElementById('note-' + id).value.trim();
+  save(id, { status: (STATE[id] || {}).status === k ? '' : k, note: note });
+});
+document.getElementById('list').addEventListener('change', function (e) {
+  if (e.target.tagName !== 'TEXTAREA') return;
+  var id = e.target.closest('.case').dataset.id;
+  save(id, { note: e.target.value.trim() });
+});
+
+render();
+
+(async function () {
+  if (!window.claude || !window.claude.use) { document.getElementById('ro').hidden = false; return; }
+  user = await window.claude.use('user');
+  db = await window.claude.use('db');
+  if (!db || !user) { document.getElementById('ro').hidden = false; renderCounts(); return; }
+  var c = await user.can('data.write');
+  canWrite = c !== false;
+  document.getElementById('ro').hidden = canWrite;
+  db.collection('results').onSnapshot(function (snap) {
+    var next = {};
+    snap.docs.forEach(function (d) { next[d.id] = d.data(); });
+    STATE = next;
+    var ids = Object.keys(STATE).map(function (k) { return STATE[k].by; }).filter(Boolean);
+    user.profiles(ids).then(function (ps) { PROFILES = ps || {}; render(); }, function () { render(); });
+    render();
+  }, function () {
+    document.getElementById('ro').hidden = false;
+    document.getElementById('ro').textContent = 'เชื่อมต่อผลทดสอบไม่ได้ ลองรีเฟรชหน้า';
+  });
+})();
+</script>
