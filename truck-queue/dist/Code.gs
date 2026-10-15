@@ -33,6 +33,7 @@ function setup() {
   textColumns_(SHEET.SCHED, ['effectiveFrom', 'branches']);
   textColumns_(SHEET.HOLIDAY, ['date']);
   textColumns_(SHEET.LOG, ['ts']);
+  textColumns_(SHEET.SETTING, ['value']);
 
   seedIfEmpty_(SHEET.SETTING, DEFAULT_SETTINGS.map(function (d) { return { key: d[0], value: d[1], note: d[2] }; }));
   seedIfEmpty_(SHEET.TIER, DEFAULT_TIERS.map(function (t) { return { minValue: t[0], freeKm: t[1] }; }));
@@ -574,7 +575,7 @@ function tiers_() {
 
 function branches_() {
   return readAll_(SHEET.BRANCH).map(function (b) {
-    b.code = String(b.code); b.lat = Number(b.lat) || null; b.lng = Number(b.lng) || null;
+    b.code = padCode_(b.code); b.lat = Number(b.lat) || null; b.lng = Number(b.lng) || null;
     return b;
   });
 }
@@ -809,8 +810,14 @@ var STOCK_OPTIONS = ['โกดัง', 'สาขา', 'ทั้งโกด�
 
 function today_() { return ymd_(new Date()); }
 
+/** รหัสสาขา 5 หลัก — ชีตมักตัดเลข 0 ข้างหน้า (00005 → 5) */
+function padCode_(c) {
+  c = String(c === undefined || c === null ? '' : c).trim();
+  return /^\d{1,4}$/.test(c) ? ('00000' + c).slice(-5) : c;
+}
+
 function pilotCodes_(s) {
-  return String(s.pilotBranches || '').split(',').map(function (x) { return x.trim(); }).filter(String);
+  return String(s.pilotBranches || '').split(',').map(padCode_).filter(String);
 }
 
 function bookableBranch_(b, s) {

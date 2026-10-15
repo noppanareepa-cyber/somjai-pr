@@ -21,6 +21,7 @@ function setup() {
   textColumns_(SHEET.SCHED, ['effectiveFrom', 'branches']);
   textColumns_(SHEET.HOLIDAY, ['date']);
   textColumns_(SHEET.LOG, ['ts']);
+  textColumns_(SHEET.SETTING, ['value']);
 
   seedIfEmpty_(SHEET.SETTING, DEFAULT_SETTINGS.map(function (d) { return { key: d[0], value: d[1], note: d[2] }; }));
   seedIfEmpty_(SHEET.TIER, DEFAULT_TIERS.map(function (t) { return { minValue: t[0], freeKm: t[1] }; }));

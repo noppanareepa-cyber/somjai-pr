@@ -8,8 +8,14 @@ var STOCK_OPTIONS = ['โกดัง', 'สาขา', 'ทั้งโกด�
 
 function today_() { return ymd_(new Date()); }
 
+/** รหัสสาขา 5 หลัก — ชีตมักตัดเลข 0 ข้างหน้า (00005 → 5) */
+function padCode_(c) {
+  c = String(c === undefined || c === null ? '' : c).trim();
+  return /^\d{1,4}$/.test(c) ? ('00000' + c).slice(-5) : c;
+}
+
 function pilotCodes_(s) {
-  return String(s.pilotBranches || '').split(',').map(function (x) { return x.trim(); }).filter(String);
+  return String(s.pilotBranches || '').split(',').map(padCode_).filter(String);
 }
 
 function bookableBranch_(b, s) {

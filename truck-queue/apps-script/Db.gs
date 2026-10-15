@@ -114,7 +114,7 @@ function tiers_() {
 
 function branches_() {
   return readAll_(SHEET.BRANCH).map(function (b) {
-    b.code = String(b.code); b.lat = Number(b.lat) || null; b.lng = Number(b.lng) || null;
+    b.code = padCode_(b.code); b.lat = Number(b.lat) || null; b.lng = Number(b.lng) || null;
     return b;
   });
 }

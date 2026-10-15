@@ -131,6 +131,15 @@ test('setup สร้างชีต ข้อมูลตั้งต้น แ
   assert.ok(b.sales.some(s => s.name === 'หน่อย' && s.branchCode === '00005'));
 });
 
+test('ชีตตัดเลข 0 หน้ารหัสสาขา (00005 → 5) ยังเปิดใช้ได้', () => {
+  const S = ready();
+  const row = S.__sheets['ตั้งค่า']._rows.find(r => r[0] === 'pilotBranches');
+  row[1] = 5;
+  assert.equal(J(S.getBootstrap()).branches.find(x => x.code === '00005').bookable, true);
+  row[1] = '5, 19';
+  assert.equal(J(S.getBootstrap()).branches.find(x => x.code === '00019').bookable, true);
+});
+
 test('quote: ระยะทาง ค่าส่ง และรอบที่จองได้ของสาย4', () => {
   const S = ready();
   const q = J(S.quote({ branchCode: '00005', mapsUrl: base.mapsUrl, value: 5500 }));
