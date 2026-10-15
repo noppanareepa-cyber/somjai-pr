@@ -1,0 +1,506 @@
+<script>
+/* หน้าเว็บขอคิวรถ — ฟังก์ชันค่าส่ง/วันที่ (policyFee_, thaiDate_ …) ฝังมาจาก Logic.gs */
+var B = null;            // ข้อมูลตั้งต้นจาก getBootstrap()
+var me = load('tq_me');  // {name, branchCode}
+var staff = load('tq_staff'); // {role, pin, actor}
+var view = 'request';
+var Q = null;            // ผลคำนวณล่าสุดจาก quote()
+var pick = null;         // รอบที่เลือก {date, plate}
+
+function load(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+function save(k, v) { try { v ? localStorage.setItem(k, JSON.stringify(v)) : localStorage.removeItem(k); } catch (e) {} }
+function $(s, el) { return (el || document).querySelector(s); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+function money(n) { return Number(n || 0).toLocaleString('th-TH'); }
+function branchName(code) { var b = B.branches.filter(function (x) { return x.code === code; })[0]; return b ? b.name : code; }
+
+function call(fn) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function (ok, fail) {
+    var r = google.script.run.withSuccessHandler(ok).withFailureHandler(function (e) { fail(e); });
+    r[fn].apply(r, args);
+  });
+}
+
+function toast(msg, bad) {
+  var t = $('#toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, bad ? 6000 : 3500);
+}
+function fail(e) { toast((e && e.message) || String(e), true); }
+
+/** กล่องถามข้อมูล · fields: [{name, label, type, value, options, required}] → Promise(values|null) */
+function ask(title, fields, okLabel) {
+  return new Promise(function (resolve) {
+    var m = $('#modal');
+    m.innerHTML = '<form class="sheet"><h2>' + esc(title) + '</h2>' + fields.map(function (f) {
+      var v = esc(f.value == null ? '' : f.value);
+      var input = f.type === 'select'
+        ? '<select name="' + f.name + '">' + f.options.map(function (o) {
+            var val = typeof o === 'object' ? o.value : o, lab = typeof o === 'object' ? o.label : o;
+            return '<option value="' + esc(val) + '"' + (String(val) === String(f.value) ? ' selected' : '') + '>' + esc(lab) + '</option>'; }).join('') + '</select>'
+        : f.type === 'textarea' ? '<textarea name="' + f.name + '">' + v + '</textarea>'
+        : f.type === 'note' ? '<div class="note info">' + esc(f.value) + '</div>'
+        : '<input name="' + f.name + '" type="' + (f.type || 'text') + '" value="' + v + '"' + (f.type === 'number' ? ' inputmode="numeric"' : '') + '>';
+      return (f.label ? '<label>' + esc(f.label) + (f.required ? '' : ' <span class="opt">(ถ้ามี)</span>') + '</label>' : '') + input;
+    }).join('') + '<div class="row" style="margin-top:16px"><button type="button" class="btn ghost" data-x>ปิด</button>' +
+      '<button class="btn">' + esc(okLabel || 'บันทึก') + '</button></div></form>';
+    m.hidden = false;
+    var form = $('form', m);
+    $('[data-x]', m).onclick = function () { m.hidden = true; resolve(null); };
+    form.onsubmit = function (ev) {
+      ev.preventDefault();
+      var out = {};
+      for (var i = 0; i < fields.length; i++) {
+        var f = fields[i]; if (f.type === 'note') continue;
+        out[f.name] = form.elements[f.name].value.trim();
+        if (f.required && !out[f.name]) { toast('กรุณากรอก ' + f.label, true); return; }
+      }
+      m.hidden = true; resolve(out);
+    };
+  });
+}
+
+// ───────────────────────────── เริ่มต้น ─────────────────────────────
+
+call('getBootstrap').then(function (b) {
+  B = b;
+  if (me && !B.sales.some(function (s) { return s.name === me.name && s.branchCode === me.branchCode; })) {
+    // ชื่อถูกเปลี่ยน/ปิดโดยคลัง — ให้เลือกใหม่
+    if (!B.sales.some(function (s) { return s.branchCode === me.branchCode; })) me = null;
+  }
+  render();
+}).catch(fail);
+
+$('#who').onclick = function () { me = null; save('tq_me', null); view = 'request'; render(); };
+$('#staffLink').onclick = function () { staffLogin(); };
+
+function render() {
+  var who = $('#who');
+  if (staff) {
+    who.hidden = false; who.textContent = staff.actor + ' · ' + { wh: 'คลัง', zone: 'ผจก.เขต', ceo: 'CEO', coo: 'COO' }[staff.role] + ' ✕';
+    who.onclick = function () { staff = null; save('tq_staff', null); view = 'request'; render(); };
+  } else {
+    who.hidden = !me; who.textContent = me ? me.name + ' · ' + branchName(me.branchCode) + ' ✎' : '';
+    who.onclick = function () { me = null; save('tq_me', null); view = 'request'; render(); };
+  }
+  if (staff) return renderStaff();
+  if (!me) return renderWho();
+  var app = $('#app');
+  app.innerHTML = '<div class="tabs"><button data-v="request">ขอคิวส่งลูกค้า</button><button data-v="mine">คำขอของสาขา</button></div><div id="pane"></div>';
+  app.querySelectorAll('.tabs button').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.v === view);
+    b.onclick = function () { view = b.dataset.v; render(); };
+  });
+  if (view === 'mine') renderMine(); else renderForm();
+}
+
+// ───────────────────────────── เลือกชื่อ ─────────────────────────────
+
+function renderWho() {
+  var app = $('#app');
+  var opts = B.branches.map(function (b) { return '<option value="' + b.code + '">' + esc(b.name + ' (' + b.code + ')') + '</option>'; }).join('');
+  app.innerHTML = '<div class="card"><h2>คุณคือใคร</h2><p class="muted small">เลือกครั้งเดียว เครื่องนี้จะจำไว้</p>' +
+    '<label>สาขา</label><select id="wb"><option value="">— เลือกสาขา —</option>' + opts + '</select>' +
+    '<label>ชื่อ</label><select id="wn" disabled><option>— เลือกสาขาก่อน —</option></select>' +
+    '<button class="link" id="wadd" hidden>+ ไม่มีชื่อฉันในรายการ</button>' +
+    '<button class="btn block" id="wok" disabled>เริ่มใช้งาน</button></div>';
+  var wb = $('#wb'), wn = $('#wn');
+  wb.onchange = function () {
+    var names = B.sales.filter(function (s) { return s.branchCode === wb.value; });
+    wn.disabled = !wb.value;
+    wn.innerHTML = '<option value="">— เลือกชื่อ —</option>' + names.map(function (s) { return '<option>' + esc(s.name) + '</option>'; }).join('');
+    $('#wadd').hidden = !wb.value; $('#wok').disabled = true;
+  };
+  wn.onchange = function () { $('#wok').disabled = !wn.value; };
+  $('#wadd').onclick = function () {
+    ask('เพิ่มชื่อของฉัน', [{ name: 'name', label: 'ชื่อเล่น', required: true },
+      { type: 'note', value: 'สาขา: ' + branchName(wb.value) + ' · คลังจะตรวจชื่อใหม่อีกครั้ง' }], 'เพิ่มชื่อ').then(function (v) {
+      if (!v) return;
+      call('addMyName', v.name, wb.value).then(function (p) {
+        B.sales.push(p); me = p; save('tq_me', me); render();
+      }).catch(fail);
+    });
+  };
+  $('#wok').onclick = function () { me = { name: wn.value, branchCode: wb.value }; save('tq_me', me); render(); };
+}
+
+// ───────────────────────────── ฟอร์มขอคิว ─────────────────────────────
+
+function renderForm() {
+  var b = B.branches.filter(function (x) { return x.code === me.branchCode; })[0] || {};
+  var pane = $('#pane');
+  if (!b.bookable) {
+    pane.innerHTML = '<div class="note warn">สาขา ' + esc(b.name || me.branchCode) + ' ยังไม่เปิดใช้ระบบขอคิว (ช่วงทดลองเปิดเฉพาะบางสาขา) กรุณาใช้วิธีเดิมไปก่อน</div>';
+    return;
+  }
+  pane.innerHTML = '<form id="f" class="card" autocomplete="off">' +
+    '<label>ลูกค้า / หน่วยงาน</label><input type="text" name="customer">' +
+    '<label>ลิงก์ Google Maps ของลูกค้า</label><input type="text" name="mapsUrl" placeholder="https://maps.app.goo.gl/…">' +
+    '<label>ที่อยู่ <span class="opt">(ถ้าไม่มีลิงก์ ต้องใส่)</span></label><textarea name="address"></textarea>' +
+    '<div class="row"><div><label>มูลค่าสินค้า ก่อน VAT (บาท)</label><input type="number" name="value" min="0" inputmode="decimal"></div>' +
+    '<div><label>จำนวนสินค้า</label><input type="text" name="qty" placeholder="เช่น 10 ลัง"></div></div>' +
+    '<label>ของอยู่ที่</label><div class="seg">' + B.stockOptions.map(function (o) {
+      return '<label><input type="radio" name="stock" value="' + esc(o) + '"><span>' + esc(o) + '</span></label>'; }).join('') + '</div>' +
+    '<label class="check"><input type="checkbox" name="lowMargin"> สินค้ากลุ่มกระดาษ / Low Margin (คลังพิจารณาค่าส่งเป็นรายกรณี)</label>' +
+    '<button type="button" class="btn ghost block" id="qbtn">ตรวจระยะทาง ค่าส่ง และวันส่ง</button>' +
+    '<div id="qres"></div></form>';
+  var f = $('#f');
+  $('#qbtn').onclick = function () { doQuote(f); };
+  ['mapsUrl', 'address'].forEach(function (n) { f.elements[n].oninput = function () { Q = null; pick = null; $('#qres').innerHTML = ''; }; });
+  f.elements.value.oninput = function () { if (Q) renderQuote(f); };
+  f.elements.lowMargin.onchange = function () { if (Q) renderQuote(f); };
+  f.onsubmit = function (ev) { ev.preventDefault(); };
+}
+
+function doQuote(f) {
+  var btn = $('#qbtn'); btn.disabled = true; btn.textContent = 'กำลังคำนวณ…';
+  call('quote', { branchCode: me.branchCode, mapsUrl: f.elements.mapsUrl.value, address: f.elements.address.value, value: f.elements.value.value })
+    .then(function (q) { Q = q; pick = null; renderQuote(f); })
+    .catch(fail)
+    .then(function () { btn.disabled = false; btn.textContent = 'คำนวณใหม่'; });
+}
+
+function renderQuote(f) {
+  var value = Number(f.elements.value.value) || 0;
+  var low = f.elements.lowMargin.checked;
+  var fee = policyFee_(Q.distanceKm, value, B.settings.tiers, B.settings.ratePer10Km);
+  var free = freeKm_(value, B.settings.tiers);
+  var out = '';
+  if (!Q.metro) {
+    $('#qres').innerHTML = '<div class="note bad">ปลายทางอยู่ต่างจังหวัด (' + esc(Q.province || 'ไม่ทราบจังหวัด') +
+      ') ระบบนี้รับเฉพาะกรุงเทพฯ และปริมณฑล กรุณากรอก "ใบแจ้งขอรอบรถส่งสินค้าลูกค้าต่างจังหวัด"</div>';
+    return;
+  }
+  out += '<div class="note ' + (low ? 'info' : fee ? 'warn' : 'ok') + '"><b>' + Q.distanceKm + ' กม.</b> จากสาขา · ' + esc(Q.province) +
+    (low ? '<br>สินค้ากลุ่มกระดาษ/Low Margin — คลังพิจารณาค่าส่ง'
+      : '<br>ยอด ' + money(value) + ' บาท ส่งฟรี ' + free + ' กม. · <b>ค่าส่งตามนโยบาย ' + money(fee) + ' บาท</b>') + '</div>';
+  if (Q.formatted) out += '<p class="small muted">ตำแหน่งที่พบ: ' + esc(Q.formatted) + ' · <a target="_blank" href="https://www.google.com/maps?q=' + Q.lat + ',' + Q.lng + '">ดูบนแผนที่</a></p>';
+
+  out += '<h3>เลือกวันส่ง</h3>';
+  if (!Q.rounds.length) out += '<div class="note warn">ช่วง 2 สัปดาห์นี้ไม่มีรอบรถผ่านสาขา ติ๊ก "นอกรอบ/ด่วน" แล้วให้คลังจัดรถให้</div>';
+  out += '<div class="rounds">' + Q.rounds.map(function (r, i) {
+    var appr = value < B.settings.minValue && !r.onRoute;
+    var on = pick && pick.date === r.date && pick.plate === r.plate;
+    return '<button type="button" class="round' + (on ? ' on' : '') + '" data-i="' + i + '"' + (r.left <= 0 ? ' disabled' : '') + '>' +
+      '<b>' + esc(r.label) + '</b><small>' + (r.left <= 0 ? 'เต็มแล้ว' : 'เหลือ ' + r.left + ' จุด') + '</small>' +
+      (appr ? '<br><span class="badge warn">ต้องอนุมัติ</span>' : r.onRoute ? '<br><span class="badge ok">อยู่บนเส้นทาง</span>' : '') + '</button>';
+  }).join('') + '</div>';
+  out += '<label class="check"><input type="checkbox" id="urgent"' + (pick && pick.urgent ? ' checked' : '') + '> นอกรอบ / ด่วน (คลังจัดรถเอง)</label>' +
+    '<div id="udate"' + (pick && pick.urgent ? '' : ' hidden') + '><label>วันที่ต้องการส่ง</label><input type="date" id="ud" min="' + Q.urgentEarliest + '" value="' + (pick && pick.urgent ? pick.date : '') + '"></div>';
+  var chosen = pick && !pick.urgent ? Q.rounds.filter(function (r) { return r.date === pick.date && r.plate === pick.plate; })[0] : null;
+  var needAppr = pick && value < B.settings.minValue && !(chosen && chosen.onRoute);
+  if (needAppr) out += '<div class="note warn">ยอดต่ำกว่า ' + money(B.settings.minValue) + ' บาทและอยู่นอกเส้นทาง — ต้องได้รับอนุมัติจาก ผจก.เขต → CEO และ คลัง → COO ก่อนส่ง</div>';
+
+  out += '<h3>รายละเอียดเพิ่มเติม</h3>' +
+    '<div class="row"><div><label>ค่าส่งที่เก็บลูกค้า (บาท)</label><input type="number" name="feeCharged" inputmode="numeric" value="' + (low ? '' : fee) + '"></div>' +
+    '<div><label>เลขที่ TR <span class="opt">(ถ้ามี)</span></label><input type="text" name="trNo"></div></div>' +
+    '<div id="feeWhy" hidden><label>เหตุผลที่เก็บค่าส่งต่ำกว่านโยบาย</label><input type="text" name="feeReason"></div>' +
+    '<div class="row"><div><label>เบอร์ผู้รับ <span class="opt">(ถ้ามี)</span></label><input type="tel" name="phone"></div>' +
+    '<div><label>เวลาสะดวกรับ <span class="opt">(ถ้ามี)</span></label><input type="text" name="timeWindow" placeholder="เช่น 9:00–12:00"></div></div>' +
+    '<label>หมายเหตุ <span class="opt">(ถ้ามี)</span></label><textarea name="note"></textarea>' +
+    '<button type="button" class="btn block" id="send">ส่งคำขอ</button>';
+  $('#qres').innerHTML = out;
+
+  $('#qres').querySelectorAll('.round').forEach(function (el) {
+    el.onclick = function () { var r = Q.rounds[+el.dataset.i]; pick = { date: r.date, plate: r.plate }; renderQuote(f); };
+  });
+  $('#urgent').onchange = function () {
+    pick = this.checked ? { urgent: true, date: '' } : null; renderQuote(f);
+  };
+  if ($('#ud')) $('#ud').onchange = function () { pick = { urgent: true, date: this.value }; };
+  var fc = f.elements.feeCharged;
+  var whyCheck = function () { $('#feeWhy').hidden = low || fc.value === '' || Number(fc.value) >= fee; };
+  fc.oninput = whyCheck; whyCheck();
+  $('#send').onclick = function () { submit(f, fee, low); };
+}
+
+function submit(f, fee, low) {
+  var e = f.elements;
+  var stock = (f.querySelector('input[name=stock]:checked') || {}).value;
+  if (!e.customer.value.trim()) return toast('กรุณาใส่ชื่อลูกค้า', true);
+  if (!(Number(e.value.value) > 0)) return toast('กรุณาใส่มูลค่าสินค้า', true);
+  if (!e.qty.value.trim()) return toast('กรุณาใส่จำนวนสินค้า', true);
+  if (!stock) return toast('กรุณาเลือกว่าของอยู่ที่ไหน', true);
+  if (!pick || !pick.date) return toast('กรุณาเลือกวันส่ง', true);
+  if (!low && e.feeCharged.value !== '' && Number(e.feeCharged.value) < fee && !e.feeReason.value.trim()) return toast('กรุณาใส่เหตุผลที่เก็บค่าส่งต่ำกว่านโยบาย', true);
+  var btn = $('#send'); btn.disabled = true; btn.textContent = 'กำลังส่ง…';
+  call('submitRequest', {
+    requester: me.name, branchCode: me.branchCode, customer: e.customer.value, mapsUrl: e.mapsUrl.value,
+    address: e.address.value, value: e.value.value, qty: e.qty.value, stock: stock, lowMargin: e.lowMargin.checked,
+    urgent: !!pick.urgent, date: pick.date, plate: pick.plate || '', feeCharged: e.feeCharged.value,
+    feeReason: e.feeReason.value, trNo: e.trNo.value, phone: e.phone.value, timeWindow: e.timeWindow.value, note: e.note.value
+  }).then(function (r) {
+    Q = null; pick = null;
+    $('#pane').innerHTML = '<div class="card center"><h2>ส่งคำขอแล้ว</h2><p>เลขคิว <b>' + esc(r.id) + '</b></p>' +
+      '<p>วันส่ง ' + esc(r.dateLabel) + '</p><p><span class="badge ' + (r.status === STATUS.APPROVAL ? 'warn' : 'info') + '">' + esc(r.status) + '</span></p>' +
+      '<button class="btn block" id="again">ขอคิวรายการใหม่</button><button class="btn ghost block" id="tomine">ดูคำขอของสาขา</button></div>';
+    $('#again').onclick = function () { render(); };
+    $('#tomine').onclick = function () { view = 'mine'; render(); };
+  }).catch(function (err) { fail(err); btn.disabled = false; btn.textContent = 'ส่งคำขอ'; });
+}
+
+// ───────────────────────────── คำขอของสาขา ─────────────────────────────
+
+var BADGE = {};
+BADGE[STATUS.PENDING] = 'info'; BADGE[STATUS.APPROVAL] = 'warn'; BADGE[STATUS.CONFIRMED] = 'ok';
+BADGE[STATUS.DELIVERED] = 'ok'; BADGE[STATUS.FAILED] = 'bad'; BADGE[STATUS.CANCELLED] = ''; BADGE[STATUS.REJECTED] = 'bad';
+
+function statusBadge(s) { return '<span class="badge ' + (BADGE[s] || '') + '">' + esc(s) + '</span>'; }
+
+function apprLine(a) {
+  var mark = function (v) { return !v ? '…' : v.indexOf('ไม่อนุมัติ') === 0 ? '✗' : '✓'; };
+  return 'ขาย: ผจก.เขต ' + mark(a.zone) + ' → CEO ' + mark(a.ceo) + ' · คลัง ' + mark(a.wh) + ' → COO ' + mark(a.coo);
+}
+
+function renderMine() {
+  var pane = $('#pane'); pane.innerHTML = '<p class="muted center">กำลังโหลด…</p>';
+  call('branchRequests', me.branchCode).then(function (list) {
+    if (!list.length) { pane.innerHTML = '<p class="muted center">ยังไม่มีคำขอใน 30 วันที่ผ่านมา</p>'; return; }
+    pane.innerHTML = list.map(function (r) {
+      var canCancel = r.status === STATUS.PENDING || r.status === STATUS.APPROVAL;
+      return '<div class="card"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
+        '<div class="small muted">' + esc(r.id) + ' · ' + esc(r.requester) + ' · ' + esc(r.qty) + '</div></div>' + statusBadge(r.status) + '</div>' +
+        '<div class="small">วันส่ง <b>' + esc(r.dateLabel) + '</b>' + (r.plate ? ' · ' + esc(r.plate) : r.urgent ? ' · นอกรอบ/ด่วน' : '') +
+        (Number(r.feeCharged) ? ' · ค่าส่ง ' + money(r.feeCharged) + ' บาท' : '') + '</div>' +
+        (r.needsApproval ? '<div class="small muted">' + apprLine(r.approvals) + '</div>' : '') +
+        (r.reason ? '<div class="note warn small">' + esc(r.reason) + '</div>' : '') +
+        (canCancel ? '<div class="actions"><button class="btn bad small" data-c="' + esc(r.id) + '">ยกเลิกคำขอ</button></div>' : '') + '</div>';
+    }).join('');
+    pane.querySelectorAll('[data-c]').forEach(function (b) {
+      b.onclick = function () {
+        if (!confirm('ยกเลิกคำขอ ' + b.dataset.c + ' ?')) return;
+        call('cancelMine', b.dataset.c, me.name).then(function () { toast('ยกเลิกแล้ว'); renderMine(); }).catch(fail);
+      };
+    });
+  }).catch(fail);
+}
+
+// ───────────────────────────── คลัง / ผู้อนุมัติ ─────────────────────────────
+
+function staffLogin() {
+  ask('เข้าสู่ระบบสำหรับคลัง / ผู้อนุมัติ', [
+    { name: 'role', label: 'กลุ่ม', type: 'select', required: true,
+      options: [{ value: 'wh', label: 'คลังสินค้า' }, { value: 'zone', label: 'ผู้จัดการเขต' }, { value: 'ceo', label: 'CEO' }, { value: 'coo', label: 'COO' }] },
+    { name: 'pin', label: 'PIN', type: 'password', required: true }
+  ], 'ถัดไป').then(function (v) {
+    if (!v) return;
+    call('staffCheck', v.role, v.pin).then(function () {
+      var names = v.role === 'wh' ? B.warehouse : v.role === 'zone' ? B.zoneManagers : [v.role === 'ceo' ? 'CEO' : 'COO'];
+      if (names.length === 1) return finish(names[0]);
+      ask('คุณคือใคร', [{ name: 'actor', label: 'ชื่อ', type: 'select', options: names, required: true }], 'เข้าใช้งาน')
+        .then(function (a) { if (a) finish(a.actor); });
+      function finish(actor) {
+        staff = { role: v.role, pin: v.pin, actor: actor }; save('tq_staff', staff);
+        view = v.role === 'wh' ? 'board' : 'approve'; render();
+      }
+    }).catch(fail);
+  });
+}
+
+function renderStaff() {
+  var tabs = staff.role === 'wh'
+    ? [['board', 'งานส่ง'], ['approve', 'รออนุมัติ'], ['sheets', 'ใบงาน/ปิดรอบ'], ['names', 'รายชื่อใหม่']]
+    : [['approve', 'รออนุมัติ']];
+  if (!tabs.some(function (t) { return t[0] === view; })) view = tabs[0][0];
+  $('#app').innerHTML = '<div class="tabs">' + tabs.map(function (t) {
+    return '<button data-v="' + t[0] + '" class="' + (t[0] === view ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div><div id="pane"></div>';
+  $('#app').querySelectorAll('.tabs button').forEach(function (b) { b.onclick = function () { view = b.dataset.v; render(); }; });
+  ({ board: renderBoard, approve: renderApprove, sheets: renderSheets, names: renderNames })[view]();
+}
+
+function staffFail(e) {
+  if (/PIN/.test((e && e.message) || '')) { staff = null; save('tq_staff', null); render(); }
+  fail(e);
+}
+
+function detailKv(r) {
+  var rows = [['สาขา', r.branchName + ' · ' + r.requester], ['ที่อยู่', r.address], ['ระยะ', (r.distanceKm || '-') + ' กม. · ' + (r.province || '')],
+    ['สินค้า', r.qty + ' · ' + money(r.value) + ' บาท · ของอยู่ที่' + r.stock],
+    ['ค่าส่ง', r.lowMargin ? 'กระดาษ/Low Margin · เก็บ ' + money(r.feeCharged) : 'นโยบาย ' + money(r.feePolicy) + ' · เก็บ ' + money(r.feeCharged) + (r.feeReason ? ' (' + r.feeReason + ')' : '')],
+    ['TR', r.trNo], ['ผู้รับ', [r.phone, r.timeWindow].filter(String).join(' · ')], ['หมายเหตุ', r.note]];
+  return '<dl class="kv">' + rows.filter(function (x) { return x[1]; }).map(function (x) {
+    return '<dt>' + x[0] + '</dt><dd>' + esc(x[1]) + '</dd>'; }).join('') +
+    (r.mapsUrl ? '<dt>แผนที่</dt><dd><a target="_blank" href="' + esc(r.mapsUrl) + '">เปิดลิงก์</a></dd>' : '') + '</dl>';
+}
+
+var boardFrom = null;
+function renderBoard() {
+  var pane = $('#pane');
+  boardFrom = boardFrom || B.today;
+  pane.innerHTML = '<div class="row"><div><label>ตั้งแต่</label><input type="date" id="bf" value="' + boardFrom + '"></div>' +
+    '<div><label>ถึง</label><input type="date" id="bt" value="' + addDays_(boardFrom, 7) + '"></div></div><div id="blist"><p class="muted center">กำลังโหลด…</p></div>';
+  var reload = function () { boardFrom = $('#bf').value; loadBoard($('#bf').value, $('#bt').value); };
+  $('#bf').onchange = reload; $('#bt').onchange = reload;
+  loadBoard(boardFrom, addDays_(boardFrom, 7));
+}
+
+function loadBoard(from, to) {
+  call('whBoard', staff.pin, from, to).then(function (d) {
+    var plates = d.trucks.map(function (t) { return { value: t.plate, label: t.plate + (t.driver ? ' · ' + t.driver : '') }; });
+    var html = '';
+    if (d.reschedule.length) html += '<h3>งานที่ต้องจัดใหม่ (ตารางรอบรถเปลี่ยน) <span class="count">' + d.reschedule.length + '</span></h3>' + d.reschedule.map(cardWh).join('');
+    var late = d.requests.filter(function (r) { return r.date < d.today; });
+    if (late.length) html += '<h3>เลยวันส่งแล้ว ยังไม่ปิด <span class="count">' + late.length + '</span></h3>' + late.map(cardWh).join('');
+    var byDate = {};
+    d.requests.filter(function (r) { return r.date >= d.today; }).forEach(function (r) { (byDate[r.date] = byDate[r.date] || []).push(r); });
+    Object.keys(byDate).sort().forEach(function (date) {
+      var list = byDate[date].sort(function (a, b) { return String(a.plate).localeCompare(String(b.plate)); });
+      var pend = list.filter(function (r) { return r.status === STATUS.PENDING; }).length;
+      html += '<h3>' + esc(thaiDate_(date)) + (pend ? ' <span class="count">' + pend + '</span>' : '') + '</h3>' + list.map(cardWh).join('');
+    });
+    if (d.newStaff.length) html = '<div class="note info">มีชื่อพนักงานใหม่ ' + d.newStaff.length + ' ชื่อ รอตรวจที่แท็บ "รายชื่อใหม่"</div>' + html;
+    $('#blist').innerHTML = html || '<p class="muted center">ไม่มีงานในช่วงนี้</p>';
+    bindWh(plates);
+  }).catch(staffFail);
+
+  function cardWh(r) {
+    var late = r.date < B.today && (r.status === STATUS.PENDING || r.status === STATUS.CONFIRMED || r.status === STATUS.APPROVAL);
+    var acts = [];
+    if (r.status === STATUS.PENDING) acts.push(['confirm', 'ยืนยัน', '']);
+    if ([STATUS.PENDING, STATUS.CONFIRMED, STATUS.APPROVAL].indexOf(r.status) !== -1) acts.push(['move', 'ย้ายวัน/รถ', 'ghost'], ['cancel', 'ยกเลิก', 'bad']);
+    if (r.status === STATUS.CONFIRMED) acts.push(['fail', 'ส่งไม่สำเร็จ', 'bad']);
+    acts.push(['edit', 'แก้ค่าส่ง/TR', 'ghost']);
+    return '<div class="card' + (late ? ' late' : '') + '"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
+      '<div class="small muted">' + esc(r.id) + ' · ' + (r.plate ? esc(r.plate) : r.urgent ? 'นอกรอบ/ด่วน — ยังไม่มีรถ' : 'ยังไม่มีรถ') + ' · ' + esc(r.dateLabel) + '</div></div>' +
+      statusBadge(r.status) + '</div>' +
+      (r.underPolicy ? '<span class="badge warn">เก็บค่าส่งต่ำกว่านโยบาย</span> ' : '') + (r.lowMargin ? '<span class="badge info">กระดาษ/Low Margin</span> ' : '') +
+      (r.needsApproval ? '<div class="small muted">' + apprLine(r.approvals) + '</div>' : '') +
+      detailKv(r) + (r.reason ? '<div class="note warn small">' + esc(r.reason) + '</div>' : '') +
+      '<div class="actions">' + acts.map(function (a) {
+        return '<button class="btn small ' + a[2] + '" data-a="' + a[0] + '" data-id="' + esc(r.id) + '" data-date="' + r.date + '" data-plate="' + esc(r.plate || '') + '" data-fee="' + esc(r.feeCharged) + '" data-tr="' + esc(r.trNo || '') + '">' + a[1] + '</button>';
+      }).join('') + '</div></div>';
+  }
+
+  function bindWh(plates) {
+    $('#blist').querySelectorAll('[data-a]').forEach(function (b) {
+      b.onclick = function () {
+        var a = b.dataset.a, id = b.dataset.id, ds = b.dataset;
+        var fields = {
+          confirm: [{ name: 'date', label: 'วันส่ง', type: 'date', value: ds.date, required: true },
+            { name: 'plate', label: 'รถ', type: 'select', options: plates, value: ds.plate, required: true }],
+          move: [{ name: 'date', label: 'วันส่งใหม่', type: 'date', value: ds.date, required: true },
+            { name: 'plate', label: 'รถ', type: 'select', options: [{ value: '', label: '— ยังไม่ระบุ —' }].concat(plates), value: ds.plate },
+            { name: 'reason', label: 'เหตุผล (คนขอจะเห็น)', required: true }],
+          cancel: [{ name: 'reason', label: 'เหตุผลที่ยกเลิก', required: true }],
+          fail: [{ name: 'reason', label: 'เหตุผลที่ส่งไม่สำเร็จ', required: true }],
+          edit: [{ name: 'feeCharged', label: 'ค่าส่งที่เก็บ (บาท)', type: 'number', value: ds.fee },
+            { name: 'trNo', label: 'เลขที่ TR', value: ds.tr }, { name: 'reason', label: 'เหตุผลค่าส่ง' }]
+        }[a];
+        ask(b.textContent + ' · ' + id, fields).then(function (v) {
+          if (!v) return;
+          call('whUpdate', staff.pin, staff.actor, id, a, v).then(function () { toast('บันทึกแล้ว'); renderBoard(); }).catch(staffFail);
+        });
+      };
+    });
+  }
+}
+
+function renderApprove() {
+  var pane = $('#pane'); pane.innerHTML = '<p class="muted center">กำลังโหลด…</p>';
+  Promise.all([call('approvals', staff.role, staff.pin, staff.actor), staff.role === 'wh' ? call('whBoard', staff.pin, B.today, B.today) : null])
+    .then(function (res) {
+      var list = res[0], trucks = res[1] ? res[1].trucks : [];
+      if (!list.length) { pane.innerHTML = '<p class="muted center">ไม่มีรายการรออนุมัติ</p>'; return; }
+      pane.innerHTML = '<div class="note info">ยอดต่ำกว่า ' + money(B.settings.minValue) + ' บาท และลูกค้าอยู่นอกเส้นทางรถ · ' +
+        'ถ้าอนุมัติไม่ครบภายใน ' + B.settings.cutoffHour + ':00 น. ของวันก่อนส่ง ระบบจะเลื่อนไปรอบถัดไป</div>' + list.map(function (r) {
+        var soon = r.date <= addDays_(B.today, 1);
+        return '<div class="card' + (soon ? ' late' : '') + '"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
+          '<div class="small muted">' + esc(r.id) + ' · ส่ง ' + esc(r.dateLabel) + ' · ' + esc(r.plate || 'ยังไม่มีรถ') + '</div></div>' + statusBadge(r.status) + '</div>' +
+          '<div class="small muted">' + apprLine(r.approvals) + '</div>' + detailKv(r) +
+          '<div class="actions"><button class="btn small" data-ok="' + esc(r.id) + '" data-date="' + r.date + '" data-plate="' + esc(r.plate || '') + '">อนุมัติ</button>' +
+          '<button class="btn small bad" data-no="' + esc(r.id) + '">ไม่อนุมัติ</button></div></div>';
+      }).join('');
+      pane.querySelectorAll('[data-ok]').forEach(function (b) {
+        b.onclick = function () {
+          var fields = [{ name: 'reason', label: 'หมายเหตุ' }];
+          if (staff.role === 'wh') fields = [{ name: 'date', label: 'วันส่ง', type: 'date', value: b.dataset.date, required: true },
+            { name: 'plate', label: 'รถ', type: 'select', value: b.dataset.plate, required: true,
+              options: trucks.map(function (t) { return { value: t.plate, label: t.plate + (t.driver ? ' · ' + t.driver : '') }; }) }].concat(fields);
+          ask('อนุมัติ ' + b.dataset.ok, fields, 'อนุมัติ').then(function (v) {
+            if (!v) return;
+            call('decide', staff.role, staff.pin, staff.actor, b.dataset.ok, true, v.reason, { date: v.date, plate: v.plate })
+              .then(function () { toast('อนุมัติแล้ว'); renderApprove(); }).catch(staffFail);
+          });
+        };
+      });
+      pane.querySelectorAll('[data-no]').forEach(function (b) {
+        b.onclick = function () {
+          ask('ไม่อนุมัติ ' + b.dataset.no, [{ name: 'reason', label: 'เหตุผล (คนขอจะเห็น)', required: true }], 'ไม่อนุมัติ').then(function (v) {
+            if (!v) return;
+            call('decide', staff.role, staff.pin, staff.actor, b.dataset.no, false, v.reason, null)
+              .then(function () { toast('บันทึกแล้ว'); renderApprove(); }).catch(staffFail);
+          });
+        };
+      });
+    }).catch(staffFail);
+}
+
+var sheetDate = null;
+function renderSheets() {
+  sheetDate = sheetDate || addDays_(B.today, 1);
+  var pane = $('#pane');
+  pane.innerHTML = '<label>วันที่</label><input type="date" id="sd" value="' + sheetDate + '"><div id="slist"><p class="muted center">กำลังโหลด…</p></div>';
+  $('#sd').onchange = function () { sheetDate = this.value; renderSheets(); };
+  call('dailySheets', staff.pin, sheetDate).then(function (list) {
+    $('#slist').innerHTML = list.length ? list.map(function (s) {
+      return '<div class="card"><div class="item"><div><div class="title">' + esc(s.plate) + '</div><div class="small muted">' + esc(s.driver || '') +
+        ' · ' + s.count + ' จุดส่งลูกค้า' + (s.pending ? ' · <b style="color:var(--warn)">ยังไม่ยืนยัน ' + s.pending + '</b>' : '') + '</div></div></div>' +
+        '<div class="actions"><a class="btn small" target="_blank" href="' + esc(s.url) + '&print=1">พิมพ์ใบงาน</a>' +
+        '<a class="btn small ghost" target="_blank" href="' + esc(s.url) + '">เปิดบนมือถือ</a>' +
+        '<button class="btn small ghost" data-close="' + esc(s.plate) + '">ปิดรอบ</button></div></div>';
+    }).join('') : '<p class="muted center">วันนี้ไม่มีรอบรถ</p>';
+    $('#slist').querySelectorAll('[data-close]').forEach(function (b) { b.onclick = function () { closeRound(b.dataset.close); }; });
+  }).catch(staffFail);
+}
+
+function closeRound(plate) {
+  call('whBoard', staff.pin, sheetDate, sheetDate).then(function (d) {
+    var stops = d.requests.filter(function (r) { return r.plate === plate && r.date === sheetDate && r.status === STATUS.CONFIRMED; });
+    if (!stops.length) return toast('ไม่มีงาน "ยืนยันแล้ว" ของรถคันนี้ในวันที่เลือก', true);
+    var m = $('#modal');
+    m.innerHTML = '<div class="sheet"><h2>ปิดรอบ ' + esc(plate) + ' · ' + esc(thaiDate_(sheetDate)) + '</h2>' +
+      '<p class="small muted">ทุกจุดจะเป็น "จัดส่งเรียบร้อย" ยกเว้นจุดที่ติ๊กว่าส่งไม่สำเร็จ</p>' + stops.map(function (r) {
+        return '<div class="card"><label class="check"><input type="checkbox" data-f="' + esc(r.id) + '"> ส่งไม่สำเร็จ — ' + esc(r.customer) + '</label>' +
+          '<input type="text" data-why="' + esc(r.id) + '" placeholder="เหตุผล" hidden></div>';
+      }).join('') + '<div class="row"><button class="btn ghost" data-x>ปิด</button><button class="btn" data-go>ปิดรอบ</button></div></div>';
+    m.hidden = false;
+    m.querySelectorAll('[data-f]').forEach(function (c) { c.onchange = function () { m.querySelector('[data-why="' + c.dataset.f + '"]').hidden = !c.checked; }; });
+    $('[data-x]', m).onclick = function () { m.hidden = true; };
+    $('[data-go]', m).onclick = function () {
+      var failed = {}, missing = false;
+      m.querySelectorAll('[data-f]:checked').forEach(function (c) {
+        var why = m.querySelector('[data-why="' + c.dataset.f + '"]').value.trim();
+        if (!why) missing = true; failed[c.dataset.f] = why;
+      });
+      if (missing) return toast('กรุณาใส่เหตุผลของจุดที่ส่งไม่สำเร็จ', true);
+      call('whCloseRound', staff.pin, staff.actor, sheetDate, plate, failed).then(function (r) {
+        m.hidden = true; toast('ปิดรอบแล้ว · ส่งเรียบร้อย ' + r.delivered + ' · ไม่สำเร็จ ' + r.failed); renderSheets();
+      }).catch(staffFail);
+    };
+  }).catch(staffFail);
+}
+
+function renderNames() {
+  var pane = $('#pane'); pane.innerHTML = '<p class="muted center">กำลังโหลด…</p>';
+  call('whBoard', staff.pin, B.today, B.today).then(function (d) {
+    if (!d.newStaff.length) { pane.innerHTML = '<p class="muted center">ไม่มีชื่อใหม่รอตรวจ</p>'; return; }
+    pane.innerHTML = '<p class="small muted">ชื่อที่พนักงานเพิ่มเอง · ถ้าซ้ำกับชื่อเดิม ให้แก้ชื่อให้ตรงกัน หรือปิดชื่อนี้</p>' + d.newStaff.map(function (p, i) {
+      return '<div class="card"><div class="title">' + esc(p.name) + '</div><div class="small muted">' + esc(branchName(p.branchCode)) + ' · เพิ่มเมื่อ ' + esc(p.createdAt) + '</div>' +
+        '<div class="actions"><button class="btn small" data-op="approve" data-i="' + i + '">ยืนยันชื่อ</button>' +
+        '<button class="btn small ghost" data-op="rename" data-i="' + i + '">แก้ชื่อ</button>' +
+        '<button class="btn small bad" data-op="close" data-i="' + i + '">ปิดชื่อนี้</button></div></div>';
+    }).join('');
+    pane.querySelectorAll('[data-op]').forEach(function (b) {
+      b.onclick = function () {
+        var p = d.newStaff[+b.dataset.i];
+        var go = function (newName) {
+          call('staffAdmin', staff.pin, staff.actor, b.dataset.op, p.name, p.branchCode, newName || '')
+            .then(function () { toast('บันทึกแล้ว'); renderNames(); }).catch(staffFail);
+        };
+        if (b.dataset.op === 'rename') ask('แก้ชื่อ ' + p.name, [{ name: 'n', label: 'ชื่อที่ถูกต้อง', value: p.name, required: true }]).then(function (v) { if (v) go(v.n); });
+        else go();
+      };
+    });
+  }).catch(staffFail);
+}
+</script>

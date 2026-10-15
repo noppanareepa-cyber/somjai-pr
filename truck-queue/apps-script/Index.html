@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <?!= include_('Css') ?>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">สมใจ <span>ขอคิวรถคลังสินค้า</span></div>
+    <button id="who" class="chip" hidden></button>
+  </header>
+
+  <main id="app">
+    <p class="muted center" id="loading">กำลังโหลด…</p>
+  </main>
+
+  <footer class="foot">
+    <button class="link" id="staffLink">สำหรับคลัง / ผู้อนุมัติ</button>
+  </footer>
+
+  <div id="modal" class="modal" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script><?!= logicSource_() ?></script>
+  <?!= include_('App') ?>
+</body>
+</html>

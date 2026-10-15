@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Sarabun', system-ui, sans-serif; font-size: 14px; color: #111; background: #fff; }
+    .page { max-width: 800px; margin: 0 auto; padding: 16px; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border-bottom: 2px solid #1f7a3a; padding-bottom: 8px; }
+    h1 { font-size: 20px; margin: 0; color: #1f7a3a; }
+    .meta { font-size: 15px; } .meta b { font-size: 17px; }
+    h2 { font-size: 15px; margin: 14px 0 6px; }
+    .branches { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #999; padding: 5px 6px; vertical-align: top; text-align: left; }
+    th { background: #eef4ef; font-weight: 600; }
+    .qr { width: 74px; } .qr img { width: 70px; height: 70px; display: block; }
+    .sign { width: 110px; } .tick { width: 70px; font-size: 13px; line-height: 1.8; }
+    .muted { color: #555; font-size: 12px; }
+    .warn { color: #9a5b00; font-weight: 600; }
+    .foot { margin-top: 16px; display: flex; justify-content: space-between; gap: 16px; }
+    .foot div { flex: 1; border-top: 1px dotted #555; padding-top: 4px; text-align: center; }
+    .bar { margin: 12px 0; }
+    .bar button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #1f7a3a; background: #1f7a3a; color: #fff; }
+    @media print { .bar { display: none; } .page { padding: 0; } tr { page-break-inside: avoid; } }
+    @media (max-width: 600px) { .sign, .tick, th.sign, th.tick { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="page" id="p"></div>
+  <script>
+    var D = <?!= data ?>;
+    var PRINT = <?= print ? 'true' : 'false' ?>;
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+    function qr(text) {
+      if (typeof qrcode === 'undefined' || !text) return '';
+      var q = qrcode(0, 'M'); q.addData(text); q.make();
+      return q.createImgTag(3, 0);
+    }
+    function mapLink(s) { return s.lat && s.lng ? 'https://www.google.com/maps/search/?api=1&query=' + s.lat + ',' + s.lng : s.mapsUrl; }
+    var total = D.stops.reduce(function (a, s) { return a + (s.fee || 0); }, 0);
+    document.getElementById('p').innerHTML =
+      '<header><div><h1>ใบงานรถส่งสินค้า · สมใจ</h1><div class="meta"><b>' + esc(D.dateLabel) + '</b> · ทะเบียน <b>' + esc(D.plate) + '</b></div>' +
+      '<div class="meta">คนขับ ' + esc(D.driver || '..................') + ' · เด็กรถ ' + esc(D.crew || '..................') + '</div></div>' +
+      '<div class="qr">' + qr(location.href.replace(/&print=1/, '')) + '<div class="muted">เปิดบนมือถือ</div></div></header>' +
+      '<div class="bar"><button onclick="print()">พิมพ์</button></div>' +
+      '<h2>1. สาขาที่แวะ (ตามลำดับ)</h2><div class="branches">' + (D.branches.length ? D.branches.map(esc).join(' → ') : 'ไม่มีในตารางรอบรถ (รอบพิเศษ)') + '</div>' +
+      '<h2>2. จุดส่งลูกค้า (' + D.stops.length + ' จุด · ค่าส่งที่ต้องเก็บรวม ' + total.toLocaleString('th-TH') + ' บาท)</h2>' +
+      (D.stops.length ? '<table><thead><tr><th>#</th><th>ลูกค้า</th><th>สินค้า</th><th>เก็บเงิน</th><th class="qr">แผนที่</th><th class="tick">ผล</th><th class="sign">ผู้รับเซ็น</th></tr></thead><tbody>' +
+        D.stops.map(function (s, i) {
+          var link = mapLink(s);
+          return '<tr><td>' + (i + 1) + '</td><td><b>' + esc(s.customer) + '</b><div class="muted">' + esc(s.id) + ' · สาขา ' + esc(s.branchName) + '</div>' +
+            (s.phone ? '<div>☎ <a href="tel:' + esc(s.phone) + '">' + esc(s.phone) + '</a></div>' : '') +
+            (s.timeWindow ? '<div>เวลา ' + esc(s.timeWindow) + '</div>' : '') +
+            '<div class="muted">' + esc(s.address) + '</div>' + (s.note ? '<div class="muted">หมายเหตุ: ' + esc(s.note) + '</div>' : '') +
+            (s.status !== 'ยืนยันแล้ว' ? '<div class="warn">' + esc(s.status) + '</div>' : '') + '</td>' +
+            '<td>' + esc(s.qty) + '<div class="muted">ของอยู่ที่' + esc(s.stock) + (s.trNo ? ' · TR ' + esc(s.trNo) : '') + '</div></td>' +
+            '<td>' + (s.fee ? '<b>' + s.fee.toLocaleString('th-TH') + '</b> บาท' : '-') + '</td>' +
+            '<td class="qr">' + (link ? '<a href="' + esc(link) + '">' + qr(link) + '</a>' : '') + '</td>' +
+            '<td class="tick">☐ ส่งแล้ว<br>☐ ไม่สำเร็จ<br>เหตุผล ......</td><td class="sign"></td></tr>';
+        }).join('') + '</tbody></table>' : '<p>ไม่มีจุดส่งลูกค้า</p>') +
+      '<div class="foot"><div>คนขับ</div><div>ผู้จัดรถ</div><div>คลังตรวจรับกลับ</div></div>';
+    if (PRINT) setTimeout(function () { window.print(); }, 600);
+  </script>
+</body>
+</html>
