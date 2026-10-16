@@ -14,7 +14,7 @@ test('dist/Code.gs เป็นฉบับล่าสุดและใช้ 
   const made = [];
   const ctx = vm.createContext({ HtmlService: { createTemplate: (s) => { made.push(s); return { evaluate: () => ({}) }; } } });
   vm.runInContext(before, ctx);
-  for (const n of ['Index', 'Css', 'App', 'Sheet']) assert.ok(ctx.html_(n).length > 500, n);
+  for (const n of ['Index', 'Css', 'App', 'Sheet', 'Form']) assert.ok(ctx.html_(n).length > 500, n);
   ctx.template_('Index');
   assert.match(made[0], /include_\('App'\)/);
   for (const f of ['setup', 'setPins', 'doGet', 'quote', 'submitRequest', 'whBoard', 'decide', 'autoPostpone', 'updateBranchCoords']) {

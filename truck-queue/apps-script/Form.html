@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Sarabun', system-ui, sans-serif; font-size: 13.5px; color: #111; background: #eef1ee; }
+    .page { width: 210mm; min-height: 297mm; margin: 12px auto; padding: 12mm 12mm 10mm; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.12); }
+    .top { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1f7a3a; padding-bottom: 6px; }
+    .logo { font: 700 30px/1 'Sarabun', sans-serif; color: #1f7a3a; }
+    .addr { font-size: 11px; color: #1f7a3a; text-align: right; line-height: 1.35; }
+    h1 { font-size: 17px; text-align: center; margin: 10px 0 2px; }
+    .sub { text-align: center; font-size: 11.5px; color: #555; margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    th, td { border: 1px solid #888; padding: 4px 6px; vertical-align: top; }
+    th.sec { background: #eef4ef; text-align: center; font-weight: 700; }
+    td.k { width: 22%; font-weight: 600; background: #fafbfa; }
+    td.v { width: 28%; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .c { display: inline-block; width: 18px; height: 18px; line-height: 16px; text-align: center; border: 1px solid #555; border-radius: 50%; font-size: 11px; margin-left: 4px; }
+    .box { display: inline-block; width: 12px; height: 12px; border: 1px solid #222; vertical-align: -1px; margin-right: 4px; text-align: center; line-height: 10px; font-size: 11px; }
+    .sign td { text-align: center; height: 92px; vertical-align: bottom; width: 33.33%; }
+    .sign .h { height: auto; vertical-align: middle; font-weight: 700; background: #eef4ef; }
+    .stamp { display: inline-block; border: 1.5px solid #1f7a3a; color: #1f7a3a; border-radius: 6px; padding: 2px 8px; font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+    .stamp.no { border-color: #a3261d; color: #a3261d; }
+    .pend { color: #999; font-size: 12px; }
+    .nm { font-weight: 600; }
+    .muted { color: #555; font-size: 11.5px; }
+    .total td { font-weight: 700; background: #f6faf6; }
+    .foot { margin-top: 8px; font-size: 11px; color: #555; display: flex; justify-content: space-between; gap: 8px; }
+    .bar { text-align: center; margin: 12px; }
+    .bar button { font: 600 15px 'Sarabun', sans-serif; padding: 8px 18px; border-radius: 8px; border: 1px solid #1f7a3a; background: #1f7a3a; color: #fff; cursor: pointer; }
+    @page { size: A4; margin: 0; }
+    @media print { body { background: #fff; } .bar { display: none; } .page { margin: 0; box-shadow: none; } }
+    @media (max-width: 820px) { .page { width: auto; min-height: 0; margin: 0; padding: 14px; } }
+  </style>
+</head>
+<body>
+  <div class="bar"><button onclick="print()">พิมพ์ / บันทึกเป็น PDF</button></div>
+  <div class="page" id="p"></div>
+  <script>
+    var D = <?!= data ?>;
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+    function m(n) { return n === '' || n == null || isNaN(Number(n)) ? '' : Number(n).toLocaleString('th-TH'); }
+    function box(on) { return '<span class="box">' + (on ? '✓' : '') + '</span>'; }
+    function signer(stamp, title, fallbackName) {
+      if (!stamp) return '<div class="pend">รออนุมัติในระบบ</div><div class="nm">(' + esc(fallbackName || '................................') + ')</div><div class="muted">' + esc(title) + '</div>';
+      return '<div class="stamp' + (stamp.ok ? '' : ' no') + '">' + (stamp.ok ? 'อนุมัติในระบบ' : 'ไม่อนุมัติ') + '</div>' +
+        '<div class="nm">(' + esc(stamp.name) + ')</div><div class="muted">' + esc(title) + '</div>' +
+        '<div class="muted">' + esc(stamp.date) + ' ' + esc(stamp.time) + (stamp.note ? ' · ' + esc(stamp.note) : '') + '</div>';
+    }
+    function requester() {
+      return '<div class="stamp">ส่งคำขอในระบบ</div><div class="nm">(' + esc(D.requester) + ')</div><div class="muted">สาขา ' + esc(D.branchName) + '</div><div class="muted">' + esc(D.createdLabel) + '</div>';
+    }
+    var c = D.cost || {};
+    var hasCost = !!D.cost;
+    var row = function (k1, v1, k2, v2) { return '<tr><td class="k">' + k1 + '</td><td class="v">' + v1 + '</td><td class="k">' + k2 + '</td><td class="v">' + v2 + '</td></tr>'; };
+    var cv = function (v, unit, n) { return hasCost ? '<span class="num">' + m(v) + '</span> ' + unit + (n ? ' <span class="c">' + n + '</span>' : '') : ''; };
+    document.getElementById('p').innerHTML =
+      '<div class="top"><div class="logo">สมใจ</div><div class="addr">เลขที่ 131-133,135-137,139<br>ถนนตรีเพชร แขวงวังบูรพาภิรมย์<br>เขตพระนคร กรุงเทพฯ 10200</div></div>' +
+      '<h1>ใบแจ้งขอรอบรถส่งสินค้าลูกค้าต่างจังหวัด</h1>' +
+      '<div class="sub">(ไม่รวมส่งลูกค้ากรุงเทพ นนทบุรี สมุทรปราการ สมุทรสาคร นครปฐม ปทุมธานี) · ตามประกาศ MEMO COO009/69</div>' +
+      '<table><tr><td class="k">เลขที่คำขอ</td><td class="v">' + esc(D.id) + '</td><td class="k">วัน/เดือน/ปี</td><td class="v">' + esc(D.createdLabel) + '</td></tr>' +
+      '<tr><td class="k">สาขา</td><td class="v">' + esc(D.branchName) + ' (' + esc(D.branchCode) + ')</td><td class="k">สถานะ</td><td class="v">' + esc(D.status) + '</td></tr></table>' +
+
+      '<table><tr><th class="sec" colspan="4">ข้อมูลจากฝ่ายขาย (ฝ่ายขายกรอกข้อมูล)</th></tr>' +
+      row('ชื่อ - นามสกุล (ลูกค้า)', esc(D.customer), 'เบอร์ติดต่อ', esc(D.phone)) +
+      row('เลขที่ใบสั่งซื้อ', esc(D.poNo || '-'), 'ยอดขายรวม', '<span class="num">' + m(D.value) + '</span> บาท') +
+      row('กำไรขั้นต้น (บาท)', '<span class="num">' + m(D.grossProfit) + '</span> บาท', 'กำไรขั้นต้น (%)', esc(D.grossProfitPct === '' ? '-' : D.grossProfitPct + '%')) +
+      row('ประเภทสินค้า', esc(D.productType), 'จำนวนสินค้า', esc(D.qty)) +
+      row('ระยะทางขาไปส่งให้ลูกค้า', '<span class="num">' + m(D.distanceKm) + '</span> กม. (จากสาขา)', 'การเก็บค่าส่งลูกค้า',
+        box(D.collectFee) + 'เก็บ ' + (D.collectFee ? '<b>' + m(D.feeCharged) + '</b> บาท' : '') + ' &nbsp; ' + box(!D.collectFee) + 'ไม่เก็บ' +
+        (D.feePolicy !== '' ? '<div class="muted">ตามนโยบาย ' + m(D.feePolicy) + ' บาท' + (D.feeReason ? ' · เหตุผล: ' + esc(D.feeReason) : '') + '</div>' : '')) +
+      '<tr><td class="k">ที่อยู่จัดส่ง</td><td colspan="3">' + esc(D.address) + ' · ' + esc(D.province) + (D.mapsUrl ? '<div class="muted">' + esc(D.mapsUrl) + '</div>' : '') + '</td></tr>' +
+      '<tr><td class="k">หมายเหตุ</td><td colspan="3">' + esc(D.note || '-') + '</td></tr></table>' +
+      '<div class="muted" style="margin-top:3px">หมายเหตุ 1. ระยะทางจากสาขาไปถึงที่อยู่ลูกค้า คำนวณจาก Google Maps &nbsp; 2. สาขาเช็กข้อมูลการเก็บค่าส่งสินค้าตามนโยบายและจัดเก็บค่าขนส่งตามนโยบายให้เรียบร้อย</div>' +
+
+      '<table class="sign"><tr><td class="h">ขอรอบรถโดย</td><td class="h">ผู้จัดการเขตตรวจสอบ</td><td class="h">อนุมัติโดย</td></tr>' +
+      '<tr><td>' + requester() + '</td><td>' + signer(D.appr.zone, 'ผู้จัดการเขต', D.zoneManager) + '</td><td>' + signer(D.appr.ceo, 'ประธานเจ้าหน้าที่บริหาร', D.ceoName) + '</td></tr></table>' +
+
+      '<table><tr><th class="sec" colspan="4">ข้อมูลจากคลังสินค้า (คลังสินค้ากรอกข้อมูล) — ค่าใช้จ่ายในการออกรถส่งตรง (ประมาณการ) · ระยะทางไป-กลับจากคลังสินค้าถึงที่อยู่ลูกค้า</th></tr>' +
+      row('ระยะทางไป-กลับรวม', cv(c.roundTripKm, 'กม.'), 'ทะเบียนรถที่ส่งของ', esc(hasCost ? D.plate : '')) +
+      row('อัตราสิ้นเปลืองน้ำมัน', cv(c.kmPerLiter, 'กม./ลิตร'), 'ค่าน้ำมันต่อลิตร', cv(c.fuelPrice, 'บาท')) +
+      row('ค่าน้ำมัน', cv(c.fuel, 'บาท', '1'), 'ค่าเสื่อม (' + m(c.depreciationPerKm || 5) + ' บาท/ก.ม.)', cv(c.depreciation, 'บาท', '2')) +
+      row('จำนวนวันเดินทางไป-กลับ', cv(c.days, 'วัน'), 'จำนวนพนักงาน', cv(c.staff, 'คน')) +
+      row('ค่าแรง / OT / เบี้ยเลี้ยง', cv(c.labor, 'บาท', '3'), 'ค่าทางด่วน', cv(c.toll, 'บาท', '4')) +
+      row('ค่าที่พัก (ถ้ามี)', cv(c.lodging, 'บาท', '5'), 'อื่นๆ', cv(c.other, 'บาท', '6')) +
+      '<tr class="total"><td class="k">รวมประมาณ ค่าใช้จ่ายในการออกรถส่งสินค้า</td><td colspan="3">' + (hasCost ? '<span class="num">' + m(c.total) + '</span> บาท (1+2+3+4+5+6)' : '') + '</td></tr>' +
+      row('ค่าใช้จ่ายหากใช้บริษัทขนส่งเอกชน', hasCost ? (c.privateCost ? '<span class="num">' + m(c.privateCost) + '</span> บาท' : '-') : '', 'มีสินค้ารวมส่งให้สาขา',
+        hasCost ? box(!c.branchGoods) + 'ไม่มี &nbsp; ' + box(c.branchGoods) + 'มี' + (c.branchGoods ? ' มูลค่า ' + m(c.branchGoodsValue) + ' บาท' : '') : '') +
+      row('ผลกระทบต่อตารางส่งประจำวัน', hasCost ? box(!c.scheduleImpact) + 'ไม่มีผลกระทบ &nbsp; ' + box(c.scheduleImpact) + 'มีผลกระทบ' + (c.impactNote ? '<div class="muted">' + esc(c.impactNote) + '</div>' : '') : '',
+        'ยืนยันวันที่ส่งสินค้า', hasCost ? esc(D.dateLabel) + (c.departTime ? ' ออกจากคลังเวลา ' + esc(c.departTime) + ' น.' : '') : '') +
+      '</table>' +
+
+      '<table class="sign"><tr><td class="h">รับเรื่อง / ตรวจสอบโดย</td><td class="h">ตรวจสอบโดย</td><td class="h">อนุมัติโดย</td></tr>' +
+      '<tr><td>' + signer(D.appr.wh, 'คลังสินค้า', '') + '</td><td>' + (D.appr.wh ? '<div class="nm">(' + esc(D.appr.wh.name) + ')</div><div class="muted">ผู้จัดการฝ่ายคลังสินค้า / ผู้แทน</div>' : '<div class="pend">รอคลังประเมิน</div><div class="nm">(คุณจรินทร มีเจริญ)</div><div class="muted">ผู้จัดการฝ่ายคลังสินค้า</div>') + '</td>' +
+      '<td>' + signer(D.appr.coo, 'ประธานเจ้าหน้าที่สายงานปฏิบัติการ', D.cooName) + '</td></tr></table>' +
+
+      '<div class="foot"><span>เอกสารนี้พิมพ์จากระบบขอคิวรถคลังสินค้า · การอนุมัติบันทึกในระบบพร้อมชื่อและเวลา</span><span>พิมพ์เมื่อ ' + esc(D.printedAt) + '</span></div>';
+  </script>
+</body>
+</html>

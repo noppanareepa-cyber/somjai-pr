@@ -216,6 +216,24 @@ test('ต่างจังหวัด: อนุมัติทีละฝั
   assert.equal(S.decide('coo', 'cooqqq', 'COO', r.id, true, '', null).status, 'ยืนยันแล้ว');
 });
 
+test('ต่างจังหวัด: ใบแจ้งสำหรับพิมพ์', () => {
+  const S = ready();
+  const r = S.submitRequest(korat);
+  S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, 'ลูกค้าประจำ', null);
+  const v = J(S.branchRequests('00005')).find(x => x.id === r.id);
+  assert.match(v.formUrl, new RegExp('view=form&id=' + r.id + '&t='));
+  const d = J(S.formData_(r.id));
+  assert.equal(d.customer, korat.customer);
+  assert.equal(d.grossProfitPct, 20);
+  assert.deepEqual(d.appr.zone, { ok: true, name: 'อธินันท์ วีระจิตต์ (อัฐ)', date: 'จ. 19 ต.ค. 69', time: '10:00', note: 'ลูกค้าประจำ' });
+  assert.equal(d.appr.ceo, null);
+  assert.equal(d.cost, null);
+  assert.equal(d.zoneManager, 'อธินันท์ วีระจิตต์ (อัฐ)');
+  const metro = S.submitRequest({ ...base, date: '2026-10-21', plate: 'ถศ 6598' });
+  assert.throws(() => S.formData_(metro.id), /ไม่ใช่งานต่างจังหวัด/);
+  assert.equal(J(S.branchRequests('00005')).find(x => x.id === metro.id).formUrl, '');
+});
+
 test('ต่างจังหวัด: ไม่เลื่อนอัตโนมัติ และไม่กินที่รอบกรุงเทพฯ', () => {
   const S = ready();
   const r = S.submitRequest({ ...korat, date: '2026-10-22' });

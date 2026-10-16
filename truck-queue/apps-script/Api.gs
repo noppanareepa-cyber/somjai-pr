@@ -220,7 +220,7 @@ function publicView_(r) {
   return { id: r.id, requester: r.requester, customer: r.customer, qty: r.qty, date: String(r.date),
     dateLabel: thaiDate_(String(r.date)), plate: r.plate, status: r.status, reason: r.reason,
     feeCharged: r.feeCharged, urgent: r.urgent === true, needsApproval: r.needsApproval === true,
-    upcountry: r.kind === KIND_UP, province: r.province,
+    upcountry: r.kind === KIND_UP, province: r.province, formUrl: r.kind === KIND_UP ? formUrl_(r.id) : '',
     approvals: { zone: r.apprZone, ceo: r.apprCeo, wh: r.apprWh, coo: r.apprCoo } };
 }
 
@@ -257,6 +257,7 @@ function fullView_(r) {
   v.underPolicy = !v.lowMargin && Number(r.feeCharged) < Number(r.feePolicy);
   if (r.kind === KIND_UP) {
     ['poNo', 'grossProfit', 'grossProfitPct', 'productType', 'whRoundTripKm', 'costTotal'].forEach(function (k) { v[k] = r[k]; });
+    v.formUrl = formUrl_(r.id);
     v.collectFee = r.collectFee !== false;
     try { v.cost = r.cost ? JSON.parse(r.cost) : null; } catch (e) { v.cost = null; }
   }
@@ -379,6 +380,46 @@ function approvals(role, pin, actor) {
     if (role === 'zone') return (bmap[String(r.branchCode)] || {}).zoneManager === actor;
     return true;
   }).map(fullView_);
+}
+
+/** ลิงก์ใบแจ้งขอรอบรถต่างจังหวัด (พิมพ์เก็บแฟ้ม) — มีโทเคนผูกกับเลขคิว */
+function formUrl_(id) {
+  return ScriptApp.getService().getUrl() + '?view=form&id=' + encodeURIComponent(id) + '&t=' + sheetToken_('form', id);
+}
+
+/** แยกข้อความอนุมัติ 'อนุมัติ: ชื่อ yyyy-MM-dd HH:mm · หมายเหตุ' */
+function parseStamp_(v) {
+  var m = String(v || '').match(/^(ไม่อนุมัติ|อนุมัติ): (.*?) (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(?: · (.*))?$/);
+  if (!m) return null;
+  return { ok: m[1] === 'อนุมัติ', name: m[2], date: thaiDate_(m[3]), time: m[4], note: m[5] || '' };
+}
+
+/** CEO/COO ใช้ PIN ตำแหน่ง ไม่ได้เลือกชื่อ — แสดงชื่อจริงจากชีตตั้งค่าบนใบแจ้ง */
+function named_(st, fullName) {
+  if (st && (st.name === 'CEO' || st.name === 'COO') && fullName) st.name = fullName;
+  return st;
+}
+
+/** ข้อมูลสำหรับใบแจ้งขอรอบรถส่งสินค้าลูกค้าต่างจังหวัด */
+function formData_(id) {
+  var r = findRequest_(id);
+  if (r.kind !== KIND_UP) throw new Error('คำขอนี้ไม่ใช่งานต่างจังหวัด');
+  var cost = null;
+  try { cost = r.cost ? JSON.parse(r.cost) : null; } catch (e) { cost = null; }
+  var s = settings_();
+  return {
+    id: r.id, createdLabel: thaiDate_(String(r.createdAt).slice(0, 10)), branchName: r.branchName, branchCode: String(r.branchCode),
+    requester: r.requester, customer: r.customer, phone: r.phone, poNo: r.poNo, value: Number(r.value) || 0,
+    grossProfit: r.grossProfit, grossProfitPct: r.grossProfitPct, productType: r.productType, qty: r.qty,
+    distanceKm: r.distanceKm, collectFee: r.collectFee !== false, feeCharged: Number(r.feeCharged) || 0,
+    feePolicy: r.feePolicy, feeReason: r.feeReason, address: r.address, mapsUrl: r.mapsUrl, province: r.province,
+    note: r.note, plate: r.plate, dateLabel: thaiDate_(String(r.date)), status: r.status,
+    zoneManager: (branchMap_()[String(r.branchCode)] || {}).zoneManager || '',
+    ceoName: s.ceoName, cooName: s.cooName,
+    appr: { zone: parseStamp_(r.apprZone), ceo: named_(parseStamp_(r.apprCeo), s.ceoName),
+      wh: parseStamp_(r.apprWh), coo: named_(parseStamp_(r.apprCoo), s.cooName) },
+    cost: cost, printedAt: nowStr_()
+  };
 }
 
 /** ข้อมูลประมาณการจากคลัง (ตัวเลขทุกช่อง + ข้อความบางช่อง) */

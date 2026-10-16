@@ -334,7 +334,7 @@ function renderMine() {
         (Number(r.feeCharged) ? ' · ค่าส่ง ' + money(r.feeCharged) + ' บาท' : '') + '</div>' +
         (r.needsApproval ? '<div class="small muted">' + apprLine(r.approvals, r.upcountry) + '</div>' : '') +
         (r.reason ? '<div class="note warn small">' + esc(r.reason) + '</div>' : '') +
-        (canCancel ? '<div class="actions"><button class="btn bad small" data-c="' + esc(r.id) + '">ยกเลิกคำขอ</button></div>' : '') + '</div>';
+        (canCancel || r.formUrl ? '<div class="actions">' + (canCancel ? '<button class="btn bad small" data-c="' + esc(r.id) + '">ยกเลิกคำขอ</button>' : '') + (r.formUrl ? '<a class="btn small ghost" target="_blank" href="' + esc(r.formUrl) + '">ใบแจ้ง (พิมพ์)</a>' : '') + '</div>' : '') + '</div>';
     }).join('');
     pane.querySelectorAll('[data-c]').forEach(function (b) {
       b.onclick = function () {
@@ -447,7 +447,7 @@ function loadBoard(from, to) {
       (r.underPolicy ? '<span class="badge warn">เก็บค่าส่งต่ำกว่านโยบาย</span> ' : '') + (r.lowMargin ? '<span class="badge info">กระดาษ/Low Margin</span> ' : '') +
       (r.needsApproval ? '<div class="small muted">' + apprLine(r.approvals, r.upcountry) + '</div>' : '') +
       detailKv(r) + (r.reason ? '<div class="note warn small">' + esc(r.reason) + '</div>' : '') +
-      '<div class="actions">' + acts.map(function (a) {
+      '<div class="actions">' + (r.formUrl ? '<a class="btn small ghost" target="_blank" href="' + esc(r.formUrl) + '">ใบแจ้ง (พิมพ์)</a>' : '') + acts.map(function (a) {
         return '<button class="btn small ' + a[2] + '" data-a="' + a[0] + '" data-id="' + esc(r.id) + '" data-date="' + r.date + '" data-plate="' + esc(r.plate || '') + '" data-fee="' + esc(r.feeCharged) + '" data-tr="' + esc(r.trNo || '') + '">' + a[1] + '</button>';
       }).join('') + '</div></div>';
   }
@@ -490,7 +490,7 @@ function renderApprove() {
           '<div class="small muted">' + apprLine(r.approvals, r.upcountry) + '</div>' + detailKv(r) +
           (r.upcountry ? '<span class="badge warn">ต่างจังหวัด · ' + esc(r.province) + '</span>' : '') +
           '<div class="actions"><button class="btn small" data-ok="' + esc(r.id) + '" data-date="' + r.date + '" data-plate="' + esc(r.plate || '') + '">อนุมัติ</button>' +
-          '<button class="btn small bad" data-no="' + esc(r.id) + '">ไม่อนุมัติ</button></div></div>';
+          '<button class="btn small bad" data-no="' + esc(r.id) + '">ไม่อนุมัติ</button>' + (r.formUrl ? '<a class="btn small ghost" target="_blank" href="' + esc(r.formUrl) + '">ใบแจ้ง (พิมพ์)</a>' : '') + '</div></div>';
       }).join('');
       pane.querySelectorAll('[data-ok]').forEach(function (b) {
         b.onclick = function () {

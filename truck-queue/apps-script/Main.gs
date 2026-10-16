@@ -58,6 +58,7 @@ function setup() {
 function doGet(e) {
   var p = (e && e.parameter) || {};
   if (p.view === 'sheet') return driverSheet_(p);
+  if (p.view === 'form') return upcountryForm_(p);
   return template_('Index').evaluate()
     .setTitle('ขอคิวรถคลังสินค้า · สมใจ')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -83,6 +84,17 @@ function html_(name) {
   return HtmlService.createHtmlOutputFromFile(name).getContent();
 }
 function template_(name) { return HtmlService.createTemplate(html_(name)); }
+/** ใบแจ้งขอรอบรถส่งสินค้าลูกค้าต่างจังหวัด — เปิดได้เฉพาะลิงก์ที่มีโทเคนของเลขคิวนั้น */
+function upcountryForm_(p) {
+  var id = String(p.id || '');
+  if (!id || p.t !== sheetToken_('form', id)) {
+    return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">ลิงก์ใบแจ้งไม่ถูกต้อง</p>');
+  }
+  var t = template_('Form');
+  t.data = JSON.stringify(formData_(id)).replace(/</g, '\\u003c');
+  return t.evaluate().setTitle('ใบแจ้งขอรอบรถ ' + id).addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
 function include_(name) { return html_(name); }
 
 /** ฝังฟังก์ชันจาก Logic.gs ให้หน้าเว็บใช้ — สูตรค่าส่งมีที่เดียว */
