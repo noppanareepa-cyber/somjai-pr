@@ -281,7 +281,7 @@ function renderUpcountry(f, value, low) {
   var keep = function (n) { var el = f.elements[n]; return el ? esc(el.value) : ''; };
   var collect = !f.elements.collectFee || f.elements.collectFee.value !== 'no';
   $('#qres').innerHTML = '<div class="note warn"><b>ปลายทางต่างจังหวัด · ' + esc(Q.province) + ' · ' + Q.distanceKm + ' กม.</b> จากสาขา<br>' +
-    'ต้องขออนุมัติ: ผจก.เขต → CEO แล้วคลังประเมินค่าใช้จ่ายและยืนยันวันส่ง → COO</div>' +
+    'ต้องขออนุมัติตามลำดับ: ผจก.เขต → คลังใส่ค่าขนส่งและยืนยันวันส่ง → CEO → COO</div>' +
     '<div class="note ' + (low ? 'info' : fee ? 'warn' : 'ok') + '">' + (low ? 'สินค้ากลุ่มกระดาษ/Low Margin — พิจารณาค่าส่งเป็นรายกรณี'
       : 'ยอด ' + money(value) + ' บาท ส่งฟรี ' + free + ' กม. · <b>ค่าส่งตามนโยบาย (ต่างจังหวัด ' + Q.ratePer10Km + ' บาท/10 กม.) ' + money(fee) + ' บาท</b>') + '</div>' +
     (Q.formatted ? '<p class="small muted">ตำแหน่งที่พบ: ' + esc(Q.formatted) + ' · <a target="_blank" href="https://www.google.com/maps?q=' + Q.lat + ',' + Q.lng + '">ดูบนแผนที่</a></p>' : '') +
@@ -363,7 +363,7 @@ function submitUpcountry(f, fee, low) {
     Q = null; pick = null; PO = [];
     $('#pane').innerHTML = '<div class="card center"><h2>ส่งขออนุมัติแล้ว</h2><p>เลขคิว <b>' + esc(r.id) + '</b></p>' +
       '<p>วันที่ลูกค้าต้องการ ' + esc(r.dateLabel) + '</p><p><span class="badge warn">' + esc(r.status) + '</span></p>' +
-      '<p class="small muted">ติดตามที่แท็บ "คำขอของสาขา" · คลังจะยืนยันวันส่งจริงหลัง CEO อนุมัติ</p>' +
+      '<p class="small muted">ติดตามที่แท็บ "คำขอของสาขา" · คลังจะใส่ค่าขนส่งและยืนยันวันส่งจริงหลัง ผจก.เขต อนุมัติ แล้วส่งต่อ CEO และ COO</p>' +
       '<button class="btn block" id="again">ขอคิวรายการใหม่</button><button class="btn ghost block" id="tomine">ดูคำขอของสาขา</button></div>';
     $('#again').onclick = function () { render(); };
     $('#tomine').onclick = function () { view = 'mine'; render(); };
@@ -406,7 +406,7 @@ function statusBadge(s) { return '<span class="badge ' + (BADGE[s] || '') + '">'
 
 function apprLine(a, up) {
   var mark = function (v) { return !v ? '…' : v.indexOf('ไม่อนุมัติ') === 0 ? '✗' : '✓'; };
-  return up ? 'ผจก.เขต ' + mark(a.zone) + ' → CEO ' + mark(a.ceo) + ' → คลังประเมิน ' + mark(a.wh) + ' → COO ' + mark(a.coo)
+  return up ? 'ผจก.เขต ' + mark(a.zone) + ' → คลังค่าขนส่ง ' + mark(a.wh) + ' → CEO ' + mark(a.ceo) + ' → COO ' + mark(a.coo)
     : 'ขาย: ผจก.เขต ' + mark(a.zone) + ' → CEO ' + mark(a.ceo) + ' · คลัง ' + mark(a.wh) + ' → COO ' + mark(a.coo);
 }
 
@@ -598,7 +598,7 @@ function renderApprove() {
       var list = res[0], trucks = res[1] ? res[1].trucks : [];
       if (!list.length) { pane.innerHTML = '<p class="muted center">ไม่มีรายการรออนุมัติ</p>'; return; }
       pane.innerHTML = '<div class="note info">งานยอดต่ำกว่า ' + money(B.settings.minValue) + ' บาทที่อยู่นอกเส้นทาง: ถ้าอนุมัติไม่ครบภายใน ' + B.settings.cutoffHour +
-        ':00 น. ของวันก่อนส่ง ระบบจะเลื่อนไปรอบถัดไป · งานต่างจังหวัด: อนุมัติตามลำดับ ผจก.เขต → CEO → คลังประเมิน → COO</div>' + list.map(function (r) {
+        ':00 น. ของวันก่อนส่ง ระบบจะเลื่อนไปรอบถัดไป · งานต่างจังหวัด: อนุมัติตามลำดับ ผจก.เขต → คลังใส่ค่าขนส่ง → CEO → COO</div>' + list.map(function (r) {
         var soon = r.date <= addDays_(B.today, 1);
         return '<div class="card' + (soon ? ' late' : '') + '"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
           '<div class="small muted">' + esc(r.id) + ' · ส่ง ' + esc(r.dateLabel) + ' · ' + esc(r.plate || 'ยังไม่มีรถ') + '</div></div>' + statusBadge(r.status) + '</div>' +
@@ -643,7 +643,7 @@ function costForm(r, trucks, mode) {
     return '<div><label>' + label + (opt ? ' <span class="opt">(ถ้ามี)</span>' : '') + '</label><input type="number" inputmode="decimal" name="' + n + '" value="' + (v == null ? '' : v) + '"></div>';
   };
   m.innerHTML = '<form class="sheet"><h2>ค่าขนส่งตามใบแจ้ง · ' + esc(r.id) + '</h2>' +
-    (save ? '<p class="note info small">บันทึกไว้ก่อนได้ ยังไม่ถือว่าอนุมัติ · แก้ได้จนกว่าคลังจะกดอนุมัติ (หลัง CEO อนุมัติ)</p>' : '') +
+    (save ? '<p class="note info small">บันทึกไว้ก่อนได้ ยังไม่ถือว่าอนุมัติ · แก้ได้จนกว่าคลังจะกดอนุมัติ (หลัง ผจก.เขต อนุมัติ) จากนั้นส่งต่อ CEO และ COO</p>' : '') +
     '<p class="small muted">' + esc(r.customer) + ' · ' + esc(r.province) + ' · วันที่ลูกค้าต้องการ ' + esc(r.dateLabel) + '</p>' +
     '<div class="row"><div><label>วันส่งจริง</label><input type="date" name="date" value="' + r.date + '"></div>' +
     '<div><label>เวลาออกจากคลัง</label><input type="text" name="departTime" placeholder="เช่น 9:00" value="' + esc(v('departTime', '')) + '"></div></div>' +
@@ -659,7 +659,7 @@ function costForm(r, trucks, mode) {
     '<div id="imp" hidden><label>กระทบอย่างไร</label><input type="text" name="impactNote" value="' + esc(v('impactNote', '')) + '"></div>' +
     '<div class="note info" id="sum"></div>' +
     (save ? '' : '<label>หมายเหตุ <span class="opt">(ถ้ามี)</span></label><input type="text" name="reason">') +
-    '<div class="row" style="margin-top:16px"><button type="button" class="btn ghost" data-x>ปิด</button><button class="btn">' + (save ? 'บันทึกค่าขนส่ง' : 'อนุมัติฝั่งคลัง') + '</button></div></form>';
+    '<div class="row" style="margin-top:16px"><button type="button" class="btn ghost" data-x>ปิด</button><button class="btn">' + (save ? 'บันทึกค่าขนส่ง' : 'อนุมัติฝั่งคลัง · ส่งต่อ CEO') + '</button></div></form>';
   m.hidden = false;
   var f = $('form', m), e = f.elements;
   var read = function () {
@@ -687,7 +687,7 @@ function costForm(r, trucks, mode) {
     if (save) return call('whSaveCost', staff.pin, staff.actor, r.id, { date: e.date.value, plate: e.plate.value, cost: read() })
       .then(function () { m.hidden = true; toast('บันทึกค่าขนส่งแล้ว (ยังไม่อนุมัติ)'); renderBoard(); }).catch(staffFail);
     call('decide', 'wh', staff.pin, staff.actor, r.id, true, e.reason.value.trim(), { date: e.date.value, plate: e.plate.value, cost: read() })
-      .then(function () { m.hidden = true; toast('อนุมัติฝั่งคลังแล้ว รอ COO'); renderApprove(); }).catch(staffFail);
+      .then(function () { m.hidden = true; toast('อนุมัติฝั่งคลังแล้ว ส่งต่อ CEO → COO'); renderApprove(); }).catch(staffFail);
   };
 }
 

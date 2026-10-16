@@ -165,7 +165,7 @@ function submitRequest(f) {
 
 /**
  * ขอรอบรถส่งลูกค้าต่างจังหวัด (แทนใบแจ้งกระดาษ ตาม MEMO COO009/69)
- * อนุมัติทีละฝั่ง: ผจก.เขต → CEO แล้วคลังประเมินค่าใช้จ่าย/ยืนยันวัน → COO
+ * อนุมัติตามลำดับ: ผจก.เขต → คลังใส่ค่าขนส่ง/ยืนยันวัน → CEO → COO
  */
 function submitUpcountry_(f, q, s, po) {
   var requester = clean_(f.requester, 40);

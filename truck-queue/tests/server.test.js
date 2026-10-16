@@ -217,15 +217,16 @@ test('ต่างจังหวัด: ใช้อัตรา 90 บาท �
   assert.equal(v.plate, '');
 });
 
-test('ต่างจังหวัด: อนุมัติทีละฝั่ง และคลังต้องประเมินค่าใช้จ่าย', () => {
+test('ต่างจังหวัด: ผจก.เขต → คลังใส่ค่าขนส่ง → CEO → COO', () => {
   const S = ready();
   S.__sheets['ตั้งค่า']._rows.find(x => x[0] === 'warehouseLocation')[1] = '13.70,100.40';
   const r = S.submitRequest(korat);
   const wh = ['wh', 'klangsk', 'จรินทร มีเจริญ'];
-  assert.equal(J(S.approvals(...wh)).length, 0);                       // คลังยังไม่เห็นจนกว่า CEO อนุมัติ
-  S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
+  assert.equal(J(S.approvals(...wh)).length, 0);                       // คลังยังไม่เห็นจนกว่า ผจก.เขต อนุมัติ
   assert.throws(() => S.decide(...wh.slice(0, 2), wh[2], r.id, true, '', { date: '2026-10-24', plate: 'บห 1782' }), /ยังไม่ถึงขั้น/);
-  S.decide('ceo', 'ceoppp', 'CEO', r.id, true, '', null);
+  S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
+  assert.throws(() => S.decide('ceo', 'ceoppp', 'CEO', r.id, true, '', null), /ยังไม่ถึงขั้น/);   // CEO รอคลังใส่ค่าขนส่ง
+  assert.equal(J(S.approvals('ceo', 'ceoppp', 'CEO')).length, 0);
   const list = J(S.approvals(...wh));
   assert.equal(list.length, 1);
   assert.ok(list[0].whRoundTripKm > 0);                                  // คำนวณระยะไป-กลับจากคลังให้
@@ -236,6 +237,10 @@ test('ต่างจังหวัด: อนุมัติทีละฝั
   assert.equal(out.cost.fuel, 1984);
   assert.equal(out.cost.depreciation, 2480);
   assert.equal(out.costTotal, 1984 + 2480 + 300 + 300 + 500);
+  assert.throws(() => S.decide('coo', 'cooqqq', 'COO', r.id, true, '', null), /ยังไม่ถึงขั้น/);   // COO รอ CEO
+  const ceoList = J(S.approvals('ceo', 'ceoppp', 'CEO'));
+  assert.equal(ceoList[0].cost.total, out.costTotal);                   // CEO เห็นค่าขนส่งของคลังก่อนตัดสินใจ
+  assert.equal(S.decide('ceo', 'ceoppp', 'CEO', r.id, true, '', null).status, 'รออนุมัติ');
   assert.equal(S.decide('coo', 'cooqqq', 'COO', r.id, true, '', null).status, 'ยืนยันแล้ว');
 });
 
@@ -400,7 +405,6 @@ test('ต่างจังหวัด: คลังกรอกค่าขน
   assert.equal(board.requests.find(x => x.id === r.id).cost.total, v.costTotal);
   // หลังคลังอนุมัติ แก้ไม่ได้
   S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
-  S.decide('ceo', 'ceoppp', 'CEO', r.id, true, '', null);
   S.decide('wh', 'klangsk', 'จรินทร มีเจริญ', r.id, true, '', { date: '2026-10-24', plate: 'บห 1782', cost });
   assert.throws(() => S.whSaveCost('klangsk', 'ชาญวิทย์ สีสะอาด', r.id, { cost }), /อนุมัติไปแล้ว/);
   // งานกรุงเทพฯ ใช้ไม่ได้

@@ -127,11 +127,14 @@ test('การอนุมัติสองฝั่งพร้อมกั�
   assert.equal(L.approvalStepFor_('coo', { wh: 'อนุมัติ', coo: 'อนุมัติ' }), null);
 });
 
-test('ต่างจังหวัด: คลังเริ่มได้หลัง CEO อนุมัติ', () => {
-  assert.equal(L.approvalStepFor_('wh', {}, true), null);
-  assert.equal(L.approvalStepFor_('wh', { zone: 'อนุมัติ' }, true), null);
-  assert.equal(L.approvalStepFor_('wh', { zone: 'อนุมัติ', ceo: 'อนุมัติ' }, true), 'wh');
-  assert.equal(L.approvalStepFor_('coo', { zone: 'อนุมัติ', ceo: 'อนุมัติ' }, true), null);
+test('ต่างจังหวัด: ผจก.เขต → คลัง → CEO → COO', () => {
+  assert.equal(L.approvalStepFor_('wh', {}, true), null);                          // รอ ผจก.เขต
+  assert.equal(L.approvalStepFor_('ceo', { zone: 'อนุมัติ' }, true), null);         // CEO รอคลังใส่ค่าขนส่ง
+  assert.equal(L.approvalStepFor_('wh', { zone: 'อนุมัติ' }, true), 'wh');
+  assert.equal(L.approvalStepFor_('coo', { zone: 'อนุมัติ', wh: 'อนุมัติ' }, true), null);   // COO รอ CEO
+  assert.equal(L.approvalStepFor_('ceo', { zone: 'อนุมัติ', wh: 'อนุมัติ' }, true), 'ceo');
+  assert.equal(L.approvalStepFor_('coo', { zone: 'อนุมัติ', wh: 'อนุมัติ', ceo: 'อนุมัติ' }, true), 'coo');
+  assert.equal(L.approvalStepFor_('wh', { zone: 'ไม่อนุมัติ: x' }, true), null);
 });
 
 test('ประมาณการค่าใช้จ่ายต่างจังหวัด (ตัวอย่างในใบแจ้ง)', () => {

@@ -183,16 +183,21 @@ function approvalStatus_(appr) {
 
 /**
  * ขั้นอนุมัติที่บทบาทนี้ทำได้ตอนนี้ (null = ยังไม่ถึงคิว / ทำไปแล้ว)
- * sequential = ส่งต่างจังหวัด: คลังเริ่มประเมินได้หลัง CEO อนุมัติแล้ว (ตามใบแจ้งกระดาษ)
+ * sequential = ส่งต่างจังหวัด: ผจก.เขต → คลังใส่ค่าขนส่ง/ยืนยันวัน → CEO → COO
+ *   (CEO และ COO ตัดสินใจเมื่อเห็นค่าขนส่งของคลังแล้ว)
+ * ไม่ sequential = ยอดต่ำนอกเส้นทาง: ฝั่งขาย ผจก.เขต → CEO และฝั่งคลัง คลัง → COO ทำพร้อมกัน
  */
 function approvalStepFor_(role, appr, sequential) {
   var done = function (k) { return !!String(appr[k] || ''); };
+  var ok = function (k) { return String(appr[k] || '').indexOf('อนุมัติ') === 0; };
   if (role === 'zone') return done('zone') ? null : 'zone';
-  if (role === 'ceo') return done('zone') && !done('ceo') ? 'ceo' : null;
-  if (role === 'wh') {
-    if (sequential && String(appr.ceo || '').indexOf('อนุมัติ') !== 0) return null;
-    return done('wh') ? null : 'wh';
+  if (sequential) {
+    var order = ['zone', 'wh', 'ceo', 'coo'], i = order.indexOf(role);
+    if (i < 1 || done(role)) return null;
+    return ok(order[i - 1]) ? role : null;
   }
+  if (role === 'ceo') return done('zone') && !done('ceo') ? 'ceo' : null;
+  if (role === 'wh') return done('wh') ? null : 'wh';
   if (role === 'coo') return done('wh') && !done('coo') ? 'coo' : null;
   return null;
 }
