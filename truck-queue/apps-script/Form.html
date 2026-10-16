@@ -32,14 +32,17 @@
     .foot { margin-top: 8px; font-size: 11px; color: #555; display: flex; justify-content: space-between; gap: 8px; }
     .bar { text-align: center; margin: 12px; }
     .bar button { font: 600 15px 'Sarabun', sans-serif; padding: 8px 18px; border-radius: 8px; border: 1px solid #1f7a3a; background: #1f7a3a; color: #fff; cursor: pointer; }
+    .po h2 { font-size: 15px; margin: 0 0 8px; }
+    .po img { display: block; max-width: 100%; max-height: 255mm; margin: 0 auto 8px; }
     @page { size: A4; margin: 0; }
-    @media print { body { background: #fff; } .bar { display: none; } .page { margin: 0; box-shadow: none; } }
+    @media print { body { background: #fff; } .bar { display: none; } .page { margin: 0; box-shadow: none; } .po { page-break-before: always; } }
     @media (max-width: 820px) { .page { width: auto; min-height: 0; margin: 0; padding: 14px; } }
   </style>
 </head>
 <body>
   <div class="bar"><button onclick="print()">พิมพ์ / บันทึกเป็น PDF</button></div>
   <div class="page" id="p"></div>
+  <div id="po"></div>
   <script>
     var D = <?!= data ?>;
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
@@ -68,7 +71,7 @@
 
       '<table><tr><th class="sec" colspan="4">ข้อมูลจากฝ่ายขาย (ฝ่ายขายกรอกข้อมูล)</th></tr>' +
       row('ชื่อ - นามสกุล (ลูกค้า)', esc(D.customer), 'เบอร์ติดต่อ', esc(D.phone)) +
-      row('เลขที่ใบสั่งซื้อ', esc(D.poNo || '-'), 'ยอดขายรวม', '<span class="num">' + m(D.value) + '</span> บาท') +
+      row('เลขที่ใบสั่งซื้อ', esc(D.poNo || '-') + (D.poImages.length ? '<div class="muted">แนบรูปใบสั่งซื้อ ' + D.poImages.length + ' รูป (หน้าถัดไป)</div>' : ''), 'ยอดขายรวม', '<span class="num">' + m(D.value) + '</span> บาท') +
       row('กำไรขั้นต้น (บาท)', '<span class="num">' + m(D.grossProfit) + '</span> บาท', 'กำไรขั้นต้น (%)', esc(D.grossProfitPct === '' ? '-' : D.grossProfitPct + '%')) +
       row('ประเภทสินค้า', esc(D.productType), 'จำนวนสินค้า', esc(D.qty)) +
       row('ระยะทางขาไปส่งให้ลูกค้า', '<span class="num">' + m(D.distanceKm) + '</span> กม. (จากสาขา)', 'การเก็บค่าส่งลูกค้า',
@@ -100,6 +103,11 @@
       '<td>' + signer(D.appr.coo, 'ประธานเจ้าหน้าที่สายงานปฏิบัติการ', D.cooName) + '</td></tr></table>' +
 
       '<div class="foot"><span>เอกสารนี้พิมพ์จากระบบขอคิวรถคลังสินค้า · การอนุมัติบันทึกในระบบพร้อมชื่อและเวลา</span><span>พิมพ์เมื่อ ' + esc(D.printedAt) + '</span></div>';
+    // รูปใบสั่งซื้อที่แนบ — หน้าละ 1 รูป ต่อท้ายใบแจ้ง
+    document.getElementById('po').innerHTML = D.poImages.map(function (im, i) {
+      return '<div class="page po"><h2>ใบสั่งซื้อที่แนบ · ' + esc(D.id) + (D.poNo ? ' · เลขที่ ' + esc(D.poNo) : '') + ' · รูปที่ ' + (i + 1) + '/' + D.poImages.length + '</h2>' +
+        (im.missing ? '<p class="muted">ไม่พบไฟล์ ' + esc(im.name) + '</p>' : '<img src="' + im.src + '" alt="ใบสั่งซื้อ">') + '</div>';
+    }).join('');
   </script>
 </body>
 </html>

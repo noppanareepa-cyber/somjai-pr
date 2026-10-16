@@ -46,6 +46,8 @@ function setup() {
     return { name: n, branchCode: '', role: 'คลัง', status: 'ใช้งาน', createdAt: now };
   })));
 
+  poFolder_();   // โฟลเดอร์เก็บรูปใบสั่งซื้อ (ครั้งแรกจะขอสิทธิ์ Google Drive)
+
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'autoPostpone') ScriptApp.deleteTrigger(t);
   });
@@ -59,6 +61,7 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   if (p.view === 'sheet') return driverSheet_(p);
   if (p.view === 'form') return upcountryForm_(p);
+  if (p.view === 'po') return poView_(p);
   return template_('Index').evaluate()
     .setTitle('ขอคิวรถคลังสินค้า · สมใจ')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -93,6 +96,19 @@ function upcountryForm_(p) {
   var t = template_('Form');
   t.data = JSON.stringify(formData_(id)).replace(/</g, '\\u003c');
   return t.evaluate().setTitle('ใบแจ้งขอรอบรถ ' + id).addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/** หน้าดูรูปใบสั่งซื้อของคำขอ — เปิดได้เฉพาะลิงก์ที่มีโทเคนของเลขคิวนั้น */
+function poView_(p) {
+  var id = String(p.id || '');
+  if (!id || p.t !== sheetToken_('po', id)) {
+    return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">ลิงก์รูปใบสั่งซื้อไม่ถูกต้อง</p>');
+  }
+  var r = findRequest_(id);
+  var t = template_('Po');
+  t.data = JSON.stringify({ id: r.id, customer: r.customer, branchName: r.branchName, poNo: r.poNo || '', images: poImages_(r) })
+    .replace(/</g, '\\u003c');
+  return t.evaluate().setTitle('ใบสั่งซื้อ ' + id).addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
 function include_(name) { return html_(name); }

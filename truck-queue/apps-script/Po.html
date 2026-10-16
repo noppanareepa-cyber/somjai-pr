@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Sarabun', system-ui, sans-serif; color: #111; background: #eef1ee; }
+    header { background: #1f7a3a; color: #fff; padding: 12px 16px; }
+    header b { font-size: 18px; } header div { font-size: 14px; opacity: .9; }
+    main { max-width: 900px; margin: 0 auto; padding: 12px 16px 24px; }
+    figure { margin: 0 0 14px; background: #fff; border-radius: 10px; padding: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+    figure img { display: block; width: 100%; height: auto; border-radius: 6px; }
+    figcaption { font-size: 13px; color: #555; margin-top: 4px; display: flex; justify-content: space-between; gap: 8px; }
+    figcaption a { color: #1f7a3a; }
+    .miss { color: #a3261d; padding: 16px; }
+    .bar { text-align: center; margin: 4px 0 12px; }
+    .bar button { font: 600 15px 'Sarabun', sans-serif; padding: 8px 18px; border-radius: 8px; border: 1px solid #1f7a3a; background: #1f7a3a; color: #fff; cursor: pointer; }
+    @media print { body { background: #fff; } .bar, figcaption a { display: none; } figure { box-shadow: none; page-break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <header id="h"></header>
+  <main id="m"></main>
+  <script>
+    var D = <?!= data ?>;
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+    document.getElementById('h').innerHTML = '<b>รูปใบสั่งซื้อ · ' + esc(D.id) + '</b><div>' + esc(D.branchName) + ' · ' + esc(D.customer) +
+      (D.poNo ? ' · เลขที่ ' + esc(D.poNo) : '') + '</div>';
+    document.getElementById('m').innerHTML = !D.images.length ? '<p class="miss">คำขอนี้ยังไม่มีรูปใบสั่งซื้อ</p>' :
+      '<div class="bar"><button onclick="print()">พิมพ์</button></div>' + D.images.map(function (im, i) {
+        if (im.missing) return '<figure><div class="miss">ไม่พบไฟล์ ' + esc(im.name) + ' (อาจถูกลบออกจาก Drive)</div></figure>';
+        return '<figure><img src="' + im.src + '" alt="ใบสั่งซื้อ รูปที่ ' + (i + 1) + '"><figcaption><span>รูปที่ ' + (i + 1) + ' / ' + D.images.length + '</span>' +
+          '<a href="' + im.src + '" download="' + esc(im.name) + '">บันทึกรูป</a></figcaption></figure>';
+      }).join('');
+  </script>
+</body>
+</html>

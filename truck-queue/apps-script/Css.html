@@ -67,5 +67,10 @@
   .toast { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 30; max-width: 560px; margin: 0 auto;
     background: var(--ink); color: #fff; padding: 12px 14px; border-radius: 10px; }
   .toast.bad { background: var(--bad); }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
+  .thumb { position: relative; width: 84px; height: 84px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .thumb button { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border: 0; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; padding: 0; }
+  .thumb.add { display: flex; align-items: center; justify-content: center; text-align: center; font-size: 13px; color: var(--green); border-style: dashed; cursor: pointer; }
   .count { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 999px; background: var(--bad); color: #fff; font-size: 13px; text-align: center; }
 </style>

@@ -54,6 +54,15 @@ function makeEnv() {
   };
   const province = (lat) => lat > 14.5 ? 'นครราชสีมา' : lat > 13.9 ? 'ปทุมธานี' : 'กรุงเทพมหานคร';
   const logs = [];
+  // ── Drive จำลอง ──
+  const drive = { folders: [], files: {} };
+  const DriveApp = {
+    createFolder: (name) => { const f = { id: 'fold' + drive.folders.length, name, getId: () => f.id,
+      createFile: (blob) => { const id = 'file' + Object.keys(drive.files).length; drive.files[id] = blob; return { getId: () => id }; } };
+      drive.folders.push(f); return f; },
+    getFolderById: (id) => { const f = drive.folders.find(x => x.id === id); if (!f) throw new Error('no folder'); return f; },
+    getFileById: (id) => { const b = drive.files[id]; if (!b) throw new Error('no file'); return { getBlob: () => b }; }
+  };
   const triggers = [];
   const env = {
     SpreadsheetApp: { getActiveSpreadsheet: () => ss, getUi() { throw new Error('no ui'); } },
@@ -63,6 +72,9 @@ function makeEnv() {
       computeDigest: (a, s) => [...crypto.createHash('md5').update(s).digest()],
       computeHmacSha256Signature: (v, k) => [...crypto.createHmac('sha256', k).update(v).digest()],
       base64EncodeWebSafe: (b) => Buffer.from(b.map(x => x & 255)).toString('base64url'),
+      base64Encode: (b) => Buffer.from(b.map(x => x & 255)).toString('base64'),
+      base64Decode: (s) => [...Buffer.from(s, 'base64')].map(x => (x << 24) >> 24),
+      newBlob: (bytes, mime, name) => ({ bytes, mime, name, getBytes: () => bytes, getContentType: () => mime }),
       getUuid: () => crypto.randomUUID()
     },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null, setProperty: (k, v) => { props[k] = v; } }) },
@@ -91,15 +103,16 @@ function makeEnv() {
     },
     Logger: { log: (m) => logs.push(m) },
     HtmlService: {},
+    DriveApp,
     Date: FakeDate,
     Intl, Math, JSON, String, Number, Object, Array, Error, RegExp, encodeURIComponent, decodeURIComponent
   };
   const ctx = vm.createContext(env);
-  for (const f of ['Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api', 'Main']) {
+  for (const f of ['Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api', 'Files', 'Main']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../apps-script', f + '.gs'), 'utf8'), ctx, { filename: f + '.gs' });
   }
   ctx.__setNow = (iso) => { now = Date.parse(iso); };
-  ctx.__sheets = sheets; ctx.__props = props; ctx.__triggers = triggers;
+  ctx.__sheets = sheets; ctx.__props = props; ctx.__triggers = triggers; ctx.__drive = drive;
   return ctx;
 }
 
@@ -329,4 +342,34 @@ test('ใบงานคนขับต้องมีโทเคนที่�
   const S = ready();
   assert.equal(S.sheetToken_('2026-10-21', 'ถศ 6598'), S.sheetToken_('2026-10-21', 'ถศ 6598'));
   assert.notEqual(S.sheetToken_('2026-10-21', 'ถศ 6598'), S.sheetToken_('2026-10-22', 'ถศ 6598'));
+});
+
+test('แนบรูปใบสั่งซื้อ: เก็บใน Drive ดูผ่านลิงก์มีโทเคน และแนบเพิ่มภายหลังได้', () => {
+  const S = ready();
+  const jpg = (n) => ({ name: 'po' + n + '.jpg', mime: 'image/jpeg', data: Buffer.from('fake-jpeg-' + n).toString('base64') });
+  assert.equal(S.__drive.folders.length, 1);                 // setup สร้างโฟลเดอร์ไว้แล้ว
+  const q = J(S.quote({ branchCode: '00005', mapsUrl: base.mapsUrl, value: base.value }));
+  const r0 = q.rounds[0];
+  const r = J(S.submitRequest({ ...base, date: r0.date, plate: r0.plate, poFiles: [jpg(1), jpg(2)] }));
+  assert.equal(Object.keys(S.__drive.files).length, 2);
+  const row = S.findRequest_(r.id);
+  assert.equal(J(S.poFilesOf_(row)).length, 2);
+  const mine = J(S.branchRequests('00005')).find(x => x.id === r.id);
+  assert.equal(mine.poCount, 2);
+  assert.match(mine.poUrl, /view=po&id=/);
+  const imgs = J(S.poImages_(row));
+  assert.equal(imgs[0].src, 'data:image/jpeg;base64,' + jpg(1).data);
+  // แนบเพิ่มภายหลัง · เกิน 5 รูปไม่ได้ · สาขาอื่นแนบไม่ได้
+  S.attachPo(r.id, 'หน่อย', '00005', [jpg(3), jpg(4), jpg(5)]);
+  assert.equal(J(S.branchRequests('00005')).find(x => x.id === r.id).poCount, 5);
+  assert.throws(() => S.attachPo(r.id, 'หน่อย', '00005', [jpg(6)]), /ไม่เกิน 5/);
+  assert.throws(() => S.attachPo(r.id, 'หน่อย', '00019', [jpg(6)]), /สาขาตัวเอง/);
+  // ชนิดไฟล์ต้องเป็นรูป
+  assert.throws(() => S.submitRequest({ ...base, date: r0.date, plate: r0.plate, poFiles: [{ name: 'x.pdf', mime: 'application/pdf', data: 'AAAA' }] }), /เฉพาะไฟล์รูป/);
+  // ไม่แนบรูปก็ส่งได้
+  const r2 = J(S.submitRequest({ ...base, date: r0.date, plate: r0.plate }));
+  assert.equal(J(S.branchRequests('00005')).find(x => x.id === r2.id).poUrl, '');
+  // คลังเห็นลิงก์บนกระดาน
+  const board = J(S.whBoard('klangsk', r0.date, r0.date));
+  assert.ok(board.requests.find(x => x.id === r.id).poUrl);
 });

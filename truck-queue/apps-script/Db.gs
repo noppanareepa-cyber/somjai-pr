@@ -37,7 +37,8 @@ COLS[SHEET.REQ] = [
   ['kind', 'ประเภทงาน'], ['poNo', 'เลขที่ใบสั่งซื้อ'], ['grossProfit', 'กำไรขั้นต้น (บาท)'],
   ['grossProfitPct', 'กำไรขั้นต้น (%)'], ['productType', 'ประเภทสินค้า'], ['collectFee', 'เก็บค่าส่งลูกค้า'],
   ['whRoundTripKm', 'ระยะไป-กลับจากคลัง (กม.)'], ['cost', 'ประมาณการค่าใช้จ่าย (JSON)'], ['costTotal', 'รวมค่าใช้จ่ายประมาณการ'],
-  ['branchManager', 'ผู้ขอรอบรถ (ผจก.สาขา)']
+  ['branchManager', 'ผู้ขอรอบรถ (ผจก.สาขา)'],
+  ['poFiles', 'รูปใบสั่งซื้อ (ไฟล์ใน Drive)']
 ];
 COLS[SHEET.LOG] = [['ts', 'เวลา'], ['id', 'เลขคิว'], ['actor', 'ผู้ทำ'], ['action', 'การกระทำ'], ['detail', 'รายละเอียด']];
 COLS[SHEET.BRANCH] = [

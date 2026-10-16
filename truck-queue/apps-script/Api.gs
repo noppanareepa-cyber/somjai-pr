@@ -114,8 +114,9 @@ function submitRequest(f) {
   if (!(value > 0)) throw new Error('กรุณาใส่มูลค่าสินค้า (ก่อน VAT)');
   if (STOCK_OPTIONS.indexOf(stock) === -1) throw new Error('กรุณาเลือกว่าของอยู่ที่ไหน');
 
+  var po = decodePoFiles_(f.poFiles);
   var q = quote({ branchCode: f.branchCode, mapsUrl: f.mapsUrl, address: f.address, value: value });
-  if (!q.metro) return submitUpcountry_(f, q, s);
+  if (!q.metro) return submitUpcountry_(f, q, s, po);
 
   var lowMargin = f.lowMargin === true;
   var feeCharged = f.feeCharged === '' || f.feeCharged === undefined ? q.feePolicy : Number(f.feeCharged);
@@ -154,6 +155,7 @@ function submitRequest(f) {
       status: needsApproval ? STATUS.APPROVAL : STATUS.PENDING,
       updatedAt: nowStr_(), updatedBy: requester, legacy: false
     };
+    rec.poFiles = po.length ? JSON.stringify(storePoFiles_(rec.id, po)) : '';
     append_(SHEET.REQ, rec);
     log_(rec.id, requester, 'ส่งคำขอ', thaiDate_(date) + (plate ? ' · ' + plate : ' · นอกรอบ/ด่วน') +
       (needsApproval ? ' · ต้องอนุมัติ' : ''));
@@ -165,7 +167,7 @@ function submitRequest(f) {
  * ขอรอบรถส่งลูกค้าต่างจังหวัด (แทนใบแจ้งกระดาษ ตาม MEMO COO009/69)
  * อนุมัติทีละฝั่ง: ผจก.เขต → CEO แล้วคลังประเมินค่าใช้จ่าย/ยืนยันวัน → COO
  */
-function submitUpcountry_(f, q, s) {
+function submitUpcountry_(f, q, s, po) {
   var requester = clean_(f.requester, 40);
   var productType = clean_(f.productType, 100);
   var phone = clean_(f.phone, 40);
@@ -209,6 +211,7 @@ function submitUpcountry_(f, q, s) {
       grossProfitPct: value > 0 ? Math.round(gp / value * 1000) / 10 : '', productType: productType,
       collectFee: collect, whRoundTripKm: whKm, branchManager: bm
     };
+    rec.poFiles = po && po.length ? JSON.stringify(storePoFiles_(rec.id, po)) : '';
     append_(SHEET.REQ, rec);
     log_(rec.id, requester, 'ขอรอบรถต่างจังหวัด', 'ผู้ขอ ' + bm + ' · ' + q.province + ' · ' + q.distanceKm + ' กม. · เสนอวัน ' + thaiDate_(date));
     return { id: rec.id, status: rec.status, date: date, dateLabel: thaiDate_(date) };
@@ -228,6 +231,7 @@ function publicView_(r) {
     dateLabel: thaiDate_(String(r.date)), plate: r.plate, status: r.status, reason: r.reason,
     feeCharged: r.feeCharged, urgent: r.urgent === true, needsApproval: r.needsApproval === true,
     upcountry: r.kind === KIND_UP, province: r.province, branchManager: r.branchManager || '', formUrl: r.kind === KIND_UP ? formUrl_(r.id) : '',
+    poCount: poFilesOf_(r).length, poUrl: poFilesOf_(r).length ? poUrl_(r.id) : '',
     approvals: { zone: r.apprZone, ceo: r.apprCeo, wh: r.apprWh, coo: r.apprCoo } };
 }
 
@@ -425,7 +429,7 @@ function formData_(id) {
     ceoName: s.ceoName, cooName: s.cooName,
     appr: { zone: parseStamp_(r.apprZone), ceo: named_(parseStamp_(r.apprCeo), s.ceoName),
       wh: parseStamp_(r.apprWh), coo: named_(parseStamp_(r.apprCoo), s.cooName) },
-    cost: cost, printedAt: nowStr_()
+    cost: cost, printedAt: nowStr_(), poImages: poImages_(r)
   };
 }
 
