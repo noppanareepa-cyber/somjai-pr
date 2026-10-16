@@ -434,6 +434,47 @@ function formData_(id) {
   };
 }
 
+/** วันส่ง/รถที่คลังเลือก */
+function applyRound_(r, round) {
+  var plate = clean_(round.plate, 20), date = clean_(round.date, 10);
+  if (plate && !trucks_().some(function (t) { return t.plate === plate; })) throw new Error('ไม่พบทะเบียนรถ');
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('วันส่งไม่ถูกต้อง');
+  if (date) r.date = date;
+  if (plate) { r.plate = plate; r.driver = (trucks_().filter(function (t) { return t.plate === plate; })[0] || {}).driver || ''; }
+}
+
+/** ค่าขนส่งตามใบแจ้ง (ส่วนคลังสินค้า) → คอลัมน์ cost / costTotal */
+function applyCost_(r, input) {
+  var c = upcountryCostInput_(input);
+  if (!(c.roundTripKm > 0)) throw new Error('กรุณาใส่ระยะทางไป-กลับจากคลัง');
+  var est = upcountryCost_(c);
+  c.fuel = est.fuel; c.depreciation = est.depreciation; c.total = est.total;
+  r.cost = JSON.stringify(c); r.costTotal = est.total;
+  return c;
+}
+
+/**
+ * คลังกรอก/แก้รายละเอียดค่าขนส่งตามใบแจ้งได้ล่วงหน้า (ยังไม่อนุมัติ)
+ * ทำได้ตั้งแต่ส่งคำขอจนถึงก่อนคลังกดอนุมัติ — หลังอนุมัติแล้วตัวเลขที่ COO เห็นต้องไม่เปลี่ยน
+ */
+function whSaveCost(pin, actor, id, round) {
+  requireRole_('wh', pin);
+  actor = clean_(actor, 60);
+  if (!actor) throw new Error('กรุณาเลือกชื่อ');
+  return withLock_(function () {
+    var r = findRequest_(id);
+    if (r.kind !== KIND_UP) throw new Error('บันทึกค่าขนส่งตามใบแจ้งได้เฉพาะงานต่างจังหวัด');
+    if (r.status !== STATUS.APPROVAL || r.apprWh) throw new Error('คลังอนุมัติไปแล้วหรืองานปิดแล้ว แก้ค่าขนส่งไม่ได้');
+    round = round || {};
+    applyRound_(r, round);
+    var c = applyCost_(r, round.cost);
+    r.updatedAt = nowStr_(); r.updatedBy = actor;
+    writeRow_(SHEET.REQ, r);
+    log_(id, actor, 'บันทึกค่าขนส่ง (ยังไม่อนุมัติ)', 'รวม ' + c.total + ' บาท · ไป-กลับ ' + c.roundTripKm + ' กม.');
+    return fullView_(r);
+  });
+}
+
 /** ข้อมูลประมาณการจากคลัง (ตัวเลขทุกช่อง + ข้อความบางช่อง) */
 function upcountryCostInput_(c) {
   c = c || {};
@@ -466,20 +507,9 @@ function decide(role, pin, actor, id, approve, reason, round) {
     if (role === 'zone' && (branchMap_()[String(r.branchCode)] || {}).zoneManager !== actor) {
       throw new Error('สาขานี้ไม่อยู่ในเขตของคุณ');
     }
-    if (role === 'wh' && approve && round) {
-      var plate = clean_(round.plate, 20), date = clean_(round.date, 10);
-      if (plate && !trucks_().some(function (t) { return t.plate === plate; })) throw new Error('ไม่พบทะเบียนรถ');
-      if (date) r.date = date;
-      if (plate) { r.plate = plate; r.driver = (trucks_().filter(function (t) { return t.plate === plate; })[0] || {}).driver || ''; }
-    }
+    if (role === 'wh' && approve && round) applyRound_(r, round);
     if (role === 'wh' && approve && !r.plate) throw new Error('กรุณาเลือกรถก่อนอนุมัติ');
-    if (role === 'wh' && approve && up) {
-      var c = upcountryCostInput_(round && round.cost);
-      if (!(c.roundTripKm > 0)) throw new Error('กรุณาใส่ระยะทางไป-กลับจากคลัง');
-      var est = upcountryCost_(c);
-      c.fuel = est.fuel; c.depreciation = est.depreciation; c.total = est.total;
-      r.cost = JSON.stringify(c); r.costTotal = est.total;
-    }
+    if (role === 'wh' && approve && up) applyCost_(r, round && round.cost);
     var stamp = (approve ? 'อนุมัติ' : 'ไม่อนุมัติ') + ': ' + actor + ' ' + nowStr_() + (reason ? ' · ' + reason : '');
     r[{ zone: 'apprZone', ceo: 'apprCeo', wh: 'apprWh', coo: 'apprCoo' }[step]] = stamp;
     r.status = approvalStatus_(apprOf_(r));

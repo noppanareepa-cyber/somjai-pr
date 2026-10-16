@@ -544,7 +544,7 @@ function loadBoard(from, to) {
     });
     if (d.newStaff.length) html = '<div class="note info">มีชื่อพนักงานใหม่ ' + d.newStaff.length + ' ชื่อ รอตรวจที่แท็บ "รายชื่อใหม่"</div>' + html;
     $('#blist').innerHTML = html || '<p class="muted center">ไม่มีงานในช่วงนี้</p>';
-    bindWh(plates);
+    bindWh(plates, d);
   }).catch(staffFail);
 
   function cardWh(r) {
@@ -554,6 +554,7 @@ function loadBoard(from, to) {
     if ([STATUS.PENDING, STATUS.CONFIRMED, STATUS.APPROVAL].indexOf(r.status) !== -1) acts.push(['move', 'ย้ายวัน/รถ', 'ghost'], ['cancel', 'ยกเลิก', 'bad']);
     if (r.status === STATUS.CONFIRMED) acts.push(['fail', 'ส่งไม่สำเร็จ', 'bad']);
     acts.push(['edit', 'แก้ค่าส่ง/TR', 'ghost']);
+    if (r.upcountry && r.status === STATUS.APPROVAL && !r.approvals.wh) acts.unshift(['cost', r.cost ? 'แก้ค่าขนส่ง (ใบแจ้ง)' : 'กรอกค่าขนส่ง (ใบแจ้ง)', '']);
     return '<div class="card' + (late ? ' late' : '') + '"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
       '<div class="small muted">' + esc(r.id) + ' · ' + (r.plate ? esc(r.plate) : r.urgent ? 'นอกรอบ/ด่วน — ยังไม่มีรถ' : 'ยังไม่มีรถ') + ' · ' + esc(r.dateLabel) + '</div></div>' +
       statusBadge(r.status) + '</div>' +
@@ -565,10 +566,11 @@ function loadBoard(from, to) {
       }).join('') + '</div></div>';
   }
 
-  function bindWh(plates) {
+  function bindWh(plates, d) {
     $('#blist').querySelectorAll('[data-a]').forEach(function (b) {
       b.onclick = function () {
         var a = b.dataset.a, id = b.dataset.id, ds = b.dataset;
+        if (a === 'cost') return costForm(d.requests.concat(d.reschedule).filter(function (x) { return x.id === id; })[0], d.trucks, 'save');
         var fields = {
           confirm: [{ name: 'date', label: 'วันส่ง', type: 'date', value: ds.date, required: true },
             { name: 'plate', label: 'รถ', type: 'select', options: plates, value: ds.plate, required: true }],
@@ -633,28 +635,31 @@ function renderApprove() {
 }
 
 /** คลังประเมินค่าใช้จ่ายส่งต่างจังหวัด แล้วอนุมัติฝั่งคลัง (ตามใบแจ้งกระดาษ ส่วน "ข้อมูลจากคลังสินค้า") */
-function costForm(r, trucks) {
-  var st = B.settings, m = $('#modal');
+/** ค่าขนส่งตามใบแจ้ง (ส่วนคลังสินค้า) · mode 'save' = บันทึกไว้ก่อน ยังไม่อนุมัติ · อื่นๆ = อนุมัติฝั่งคลัง */
+function costForm(r, trucks, mode) {
+  var st = B.settings, m = $('#modal'), c0 = r.cost || {}, save = mode === 'save';
+  var v = function (k, d) { return c0[k] != null && c0[k] !== '' ? c0[k] : d; };
   var num = function (n, label, v, opt) {
     return '<div><label>' + label + (opt ? ' <span class="opt">(ถ้ามี)</span>' : '') + '</label><input type="number" inputmode="decimal" name="' + n + '" value="' + (v == null ? '' : v) + '"></div>';
   };
-  m.innerHTML = '<form class="sheet"><h2>ประเมินค่าใช้จ่าย · ' + esc(r.id) + '</h2>' +
+  m.innerHTML = '<form class="sheet"><h2>ค่าขนส่งตามใบแจ้ง · ' + esc(r.id) + '</h2>' +
+    (save ? '<p class="note info small">บันทึกไว้ก่อนได้ ยังไม่ถือว่าอนุมัติ · แก้ได้จนกว่าคลังจะกดอนุมัติ (หลัง CEO อนุมัติ)</p>' : '') +
     '<p class="small muted">' + esc(r.customer) + ' · ' + esc(r.province) + ' · วันที่ลูกค้าต้องการ ' + esc(r.dateLabel) + '</p>' +
     '<div class="row"><div><label>วันส่งจริง</label><input type="date" name="date" value="' + r.date + '"></div>' +
-    '<div><label>เวลาออกจากคลัง</label><input type="text" name="departTime" placeholder="เช่น 9:00"></div></div>' +
-    '<label>รถ</label><select name="plate">' + trucks.map(function (t) { return '<option value="' + esc(t.plate) + '">' + esc(t.plate + (t.driver ? ' · ' + t.driver : '')) + '</option>'; }).join('') + '</select>' +
-    '<div class="row">' + num('roundTripKm', 'ระยะไป-กลับ (กม.)', r.whRoundTripKm || '') + num('kmPerLiter', 'อัตราสิ้นเปลือง (กม./ลิตร)', st.kmPerLiter) + '</div>' +
-    '<div class="row">' + num('fuelPrice', 'ราคาน้ำมัน (บาท/ลิตร)', st.fuelPrice) + num('days', 'จำนวนวันไป-กลับ', 1) + '</div>' +
-    '<div class="row">' + num('staff', 'จำนวนพนักงาน', 2) + num('labor', 'ค่าแรง/OT/เบี้ยเลี้ยง (บาท)', 0) + '</div>' +
-    '<div class="row">' + num('toll', 'ค่าทางด่วน (บาท)', 0) + num('lodging', 'ค่าที่พัก (บาท)', 0) + '</div>' +
-    '<div class="row">' + num('other', 'อื่นๆ (บาท)', 0) + num('privateCost', 'ถ้าใช้ขนส่งเอกชน (บาท)', '', true) + '</div>' +
-    '<label class="check"><input type="checkbox" name="branchGoods"> มีสินค้ารวมส่งให้สาขาต่างจังหวัด</label>' +
-    '<div id="bgv" hidden>' + num('branchGoodsValue', 'มูลค่าสินค้าที่ส่งสาขา (บาท)', '') + '</div>' +
-    '<label class="check"><input type="checkbox" name="scheduleImpact"> กระทบตารางส่งของประจำวัน</label>' +
-    '<div id="imp" hidden><label>กระทบอย่างไร</label><input type="text" name="impactNote"></div>' +
+    '<div><label>เวลาออกจากคลัง</label><input type="text" name="departTime" placeholder="เช่น 9:00" value="' + esc(v('departTime', '')) + '"></div></div>' +
+    '<label>รถ</label><select name="plate">' + trucks.map(function (t) { return '<option value="' + esc(t.plate) + '"' + (t.plate === r.plate ? ' selected' : '') + '>' + esc(t.plate + (t.driver ? ' · ' + t.driver : '')) + '</option>'; }).join('') + '</select>' +
+    '<div class="row">' + num('roundTripKm', 'ระยะไป-กลับ (กม.)', v('roundTripKm', r.whRoundTripKm || '')) + num('kmPerLiter', 'อัตราสิ้นเปลือง (กม./ลิตร)', v('kmPerLiter', st.kmPerLiter)) + '</div>' +
+    '<div class="row">' + num('fuelPrice', 'ราคาน้ำมัน (บาท/ลิตร)', v('fuelPrice', st.fuelPrice)) + num('days', 'จำนวนวันไป-กลับ', v('days', 1)) + '</div>' +
+    '<div class="row">' + num('staff', 'จำนวนพนักงาน', v('staff', 2)) + num('labor', 'ค่าแรง/OT/เบี้ยเลี้ยง (บาท)', v('labor', 0)) + '</div>' +
+    '<div class="row">' + num('toll', 'ค่าทางด่วน (บาท)', v('toll', 0)) + num('lodging', 'ค่าที่พัก (บาท)', v('lodging', 0)) + '</div>' +
+    '<div class="row">' + num('other', 'อื่นๆ (บาท)', v('other', 0)) + num('privateCost', 'ถ้าใช้ขนส่งเอกชน (บาท)', v('privateCost', '') || '', true) + '</div>' +
+    '<label class="check"><input type="checkbox" name="branchGoods"' + (c0.branchGoods ? ' checked' : '') + '> มีสินค้ารวมส่งให้สาขาต่างจังหวัด</label>' +
+    '<div id="bgv" hidden>' + num('branchGoodsValue', 'มูลค่าสินค้าที่ส่งสาขา (บาท)', v('branchGoodsValue', '') || '') + '</div>' +
+    '<label class="check"><input type="checkbox" name="scheduleImpact"' + (c0.scheduleImpact ? ' checked' : '') + '> กระทบตารางส่งของประจำวัน</label>' +
+    '<div id="imp" hidden><label>กระทบอย่างไร</label><input type="text" name="impactNote" value="' + esc(v('impactNote', '')) + '"></div>' +
     '<div class="note info" id="sum"></div>' +
-    '<label>หมายเหตุ <span class="opt">(ถ้ามี)</span></label><input type="text" name="reason">' +
-    '<div class="row" style="margin-top:16px"><button type="button" class="btn ghost" data-x>ปิด</button><button class="btn">อนุมัติฝั่งคลัง</button></div></form>';
+    (save ? '' : '<label>หมายเหตุ <span class="opt">(ถ้ามี)</span></label><input type="text" name="reason">') +
+    '<div class="row" style="margin-top:16px"><button type="button" class="btn ghost" data-x>ปิด</button><button class="btn">' + (save ? 'บันทึกค่าขนส่ง' : 'อนุมัติฝั่งคลัง') + '</button></div></form>';
   m.hidden = false;
   var f = $('form', m), e = f.elements;
   var read = function () {
@@ -679,6 +684,8 @@ function costForm(r, trucks) {
     ev.preventDefault();
     if (!(Number(e.roundTripKm.value) > 0)) return toast('กรุณาใส่ระยะไป-กลับ', true);
     if (!e.date.value) return toast('กรุณาเลือกวันส่งจริง', true);
+    if (save) return call('whSaveCost', staff.pin, staff.actor, r.id, { date: e.date.value, plate: e.plate.value, cost: read() })
+      .then(function () { m.hidden = true; toast('บันทึกค่าขนส่งแล้ว (ยังไม่อนุมัติ)'); renderBoard(); }).catch(staffFail);
     call('decide', 'wh', staff.pin, staff.actor, r.id, true, e.reason.value.trim(), { date: e.date.value, plate: e.plate.value, cost: read() })
       .then(function () { m.hidden = true; toast('อนุมัติฝั่งคลังแล้ว รอ COO'); renderApprove(); }).catch(staffFail);
   };

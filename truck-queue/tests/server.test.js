@@ -381,3 +381,30 @@ test('แนบรูปใบสั่งซื้อ: เก็บใน Drive
   const board = J(S.whBoard('klangsk', r0.date, r0.date));
   assert.ok(board.requests.find(x => x.id === r.id).poUrl);
 });
+
+test('ต่างจังหวัด: คลังกรอกค่าขนส่งตามใบแจ้งไว้ก่อน แล้วอนุมัติทีหลัง', () => {
+  const S = ready();
+  const r = S.submitRequest(korat);
+  const cost = { roundTripKm: 496, kmPerLiter: 8, fuelPrice: 32, labor: 300, toll: 300, lodging: 500, days: 2, staff: 2, departTime: '06:00' };
+  // กรอกได้ตั้งแต่ยังไม่มีใครอนุมัติ — ยังไม่นับเป็นการอนุมัติ
+  const v = J(S.whSaveCost('klangsk', 'ชาญวิทย์ สีสะอาด', r.id, { date: '2026-10-24', plate: 'บห 1782', cost }));
+  assert.equal(v.costTotal, 1984 + 2480 + 300 + 300 + 500);
+  assert.equal(v.cost.departTime, '06:00');
+  assert.equal(v.plate, 'บห 1782');
+  assert.equal(v.approvals.wh, '');
+  assert.equal(v.status, 'รออนุมัติ');
+  assert.throws(() => S.whSaveCost('klangsk', 'ชาญวิทย์ สีสะอาด', r.id, { cost: {} }), /ไป-กลับ/);
+  assert.throws(() => S.whSaveCost('wrong', 'x', r.id, { cost }), /PIN/);
+  // คลังเห็นบนกระดานพร้อมตัวเลข
+  const board = J(S.whBoard('klangsk', '2026-10-20', '2026-10-31'));
+  assert.equal(board.requests.find(x => x.id === r.id).cost.total, v.costTotal);
+  // หลังคลังอนุมัติ แก้ไม่ได้
+  S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
+  S.decide('ceo', 'ceoppp', 'CEO', r.id, true, '', null);
+  S.decide('wh', 'klangsk', 'จรินทร มีเจริญ', r.id, true, '', { date: '2026-10-24', plate: 'บห 1782', cost });
+  assert.throws(() => S.whSaveCost('klangsk', 'ชาญวิทย์ สีสะอาด', r.id, { cost }), /อนุมัติไปแล้ว/);
+  // งานกรุงเทพฯ ใช้ไม่ได้
+  const q = J(S.quote({ branchCode: '00005', mapsUrl: base.mapsUrl, value: base.value }));
+  const m = J(S.submitRequest({ ...base, date: q.rounds[0].date, plate: q.rounds[0].plate }));
+  assert.throws(() => S.whSaveCost('klangsk', 'x', m.id, { cost }), /เฉพาะงานต่างจังหวัด/);
+});
