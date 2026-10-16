@@ -190,7 +190,7 @@ function renderForm() {
     '<label>ของอยู่ที่</label><div class="seg">' + B.stockOptions.map(function (o) {
       return '<label><input type="radio" name="stock" value="' + esc(o) + '"><span>' + esc(o) + '</span></label>'; }).join('') + '</div>' +
     '<label class="check"><input type="checkbox" name="lowMargin"> สินค้ากลุ่มกระดาษ / Low Margin (คลังพิจารณาค่าส่งเป็นรายกรณี)</label>' +
-    '<label>รูปใบสั่งซื้อ <span class="opt">(ถ้ามี)</span></label><div id="poBox"></div>' +
+    '<label>รูปใบสั่งซื้อ <span class="opt" id="poReq">(ถ้ามี · ส่งต่างจังหวัดต้องแนบ)</span></label><div id="poBox"></div>' +
     '<button type="button" class="btn ghost block" id="qbtn">ตรวจระยะทาง ค่าส่ง และวันส่ง</button>' +
     '<div id="qres"></div></form>';
   var f = $('#f');
@@ -216,6 +216,8 @@ function renderQuote(f) {
   var fee = policyFee_(Q.distanceKm, value, B.settings.tiers, B.settings.ratePer10Km);
   var free = freeKm_(value, B.settings.tiers);
   var out = '';
+  $('#poReq').textContent = Q.metro ? '(ถ้ามี)' : '(ต่างจังหวัด — ต้องแนบอย่างน้อย 1 รูป)';
+  $('#poReq').className = Q.metro ? 'opt' : 'req';
   if (!Q.metro) return renderUpcountry(f, value, low);
   out += '<div class="note ' + (low ? 'info' : fee ? 'warn' : 'ok') + '"><b>' + Q.distanceKm + ' กม.</b> จากสาขา · ' + esc(Q.province) +
     (low ? '<br>สินค้ากลุ่มกระดาษ/Low Margin — คลังพิจารณาค่าส่ง'
@@ -334,6 +336,7 @@ function submitUpcountry(f, fee, low) {
   if (!e.productType.value.trim()) return toast('กรุณาใส่ประเภทสินค้า', true);
   if (!e.phone.value.trim()) return toast('กรุณาใส่เบอร์ติดต่อลูกค้า', true);
   if (e.grossProfit.value === '') return toast('กรุณาใส่กำไรขั้นต้น', true);
+  if (!PO.length) { $('#poBox').scrollIntoView({ block: 'center' }); return toast('ส่งต่างจังหวัดต้องแนบรูปใบสั่งซื้ออย่างน้อย 1 รูป', true); }
   if (!pick || !pick.date) return toast('กรุณาเลือกวันที่ลูกค้าต้องการ', true);
   var fc = collect ? e.feeCharged.value : '0';
   if (!low && Number(fc || fee) < fee && !e.feeReason.value.trim()) return toast('กรุณาใส่เหตุผลที่เก็บค่าส่งต่ำกว่านโยบาย', true);

@@ -193,7 +193,8 @@ test('ค่าส่งต่ำกว่านโยบายต้องม�
 });
 
 const korat = { ...base, mapsUrl: 'https://maps.app.goo.gl/korat', value: 20000, qty: '550 ชิ้น', productType: 'เฟรมผ้าใบ',
-  phone: '081-000-0000', grossProfit: 4000, poNo: 'PO-1', date: '2026-10-23', branchManager: 'สมชาย ใจดี' };
+  phone: '081-000-0000', grossProfit: 4000, poNo: 'PO-1', date: '2026-10-23', branchManager: 'สมชาย ใจดี',
+  poFiles: [{ name: 'po.jpg', mime: 'image/jpeg', data: Buffer.from('fake-jpeg').toString('base64') }] };
 
 test('ต่างจังหวัด: ใช้อัตรา 90 บาท และต้องกรอกข้อมูลตามใบแจ้ง', () => {
   const S = ready();
@@ -206,6 +207,7 @@ test('ต่างจังหวัด: ใช้อัตรา 90 บาท �
   assert.throws(() => S.submitRequest({ ...korat, branchManager: 'หน่อย' }), /ผู้จัดการสาขา/);   // พนักงานขาย ไม่ใช่ ผจก.สาขา
   assert.ok(J(S.getBootstrap()).sales.some(x => x.name === 'สมชาย ใจดี' && x.manager === true));
   assert.throws(() => S.submitRequest({ ...korat, productType: '' }), /ประเภทสินค้า/);
+  assert.throws(() => S.submitRequest({ ...korat, poFiles: [] }), /แนบรูปใบสั่งซื้อ/);   // ต่างจังหวัดต้องแนบรูป
   assert.throws(() => S.submitRequest({ ...korat, grossProfit: '' }), /กำไรขั้นต้น/);
   assert.throws(() => S.submitRequest({ ...korat, date: '2026-10-21' }), /ต้องไม่ก่อน/);
   const r = S.submitRequest(korat);
