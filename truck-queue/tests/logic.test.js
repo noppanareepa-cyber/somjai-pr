@@ -127,6 +127,24 @@ test('การอนุมัติสองฝั่งพร้อมกั�
   assert.equal(L.approvalStepFor_('coo', { wh: 'อนุมัติ', coo: 'อนุมัติ' }), null);
 });
 
+test('ต่างจังหวัด: คลังเริ่มได้หลัง CEO อนุมัติ', () => {
+  assert.equal(L.approvalStepFor_('wh', {}, true), null);
+  assert.equal(L.approvalStepFor_('wh', { zone: 'อนุมัติ' }, true), null);
+  assert.equal(L.approvalStepFor_('wh', { zone: 'อนุมัติ', ceo: 'อนุมัติ' }, true), 'wh');
+  assert.equal(L.approvalStepFor_('coo', { zone: 'อนุมัติ', ceo: 'อนุมัติ' }, true), null);
+});
+
+test('ประมาณการค่าใช้จ่ายต่างจังหวัด (ตัวอย่างในใบแจ้ง)', () => {
+  // ใบตัวอย่าง: ค่าน้ำมัน 5,000 + ค่าแรง 300 + ทางด่วน 300 + ที่พัก 500 = 6,100 (ไม่คิดค่าเสื่อม)
+  const c = plain(L.upcountryCost_({ roundTripKm: 1000, kmPerLiter: 8, fuelPrice: 40, depreciationPerKm: 0,
+    labor: 300, toll: 300, lodging: 500, privateCost: 8000 }));
+  assert.equal(c.fuel, 5000);
+  assert.equal(c.total, 6100);
+  assert.equal(c.cheaperPrivate, false);
+  assert.equal(L.upcountryCost_({ roundTripKm: 100, kmPerLiter: 10, fuelPrice: 30, depreciationPerKm: 5 }).total, 300 + 500);
+  assert.equal(L.upcountryCost_({ roundTripKm: 100, kmPerLiter: 0, fuelPrice: 30 }).fuel, 0);
+});
+
 test('วันที่ภาษาไทย', () => {
   assert.equal(L.thaiDate_('2026-10-20'), 'อ. 20 ต.ค. 69');
 });

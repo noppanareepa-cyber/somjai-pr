@@ -172,7 +172,56 @@ test('ค่าส่งต่ำกว่านโยบายต้องม�
   const far = { ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 3000, date: '2026-10-21', plate: 'ถศ 6598' };
   assert.throws(() => S.submitRequest({ ...far, feeCharged: 0 }), /ต่ำกว่านโยบาย/);
   assert.equal(S.submitRequest({ ...far, feeCharged: 0, feeReason: 'ลูกค้าประจำ' }).status, 'รอยืนยัน');
-  assert.throws(() => S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/korat', date: '2026-10-21', plate: 'ถศ 6598' }), /ต่างจังหวัด/);
+});
+
+const korat = { ...base, mapsUrl: 'https://maps.app.goo.gl/korat', value: 20000, qty: '550 ชิ้น', productType: 'เฟรมผ้าใบ',
+  phone: '081-000-0000', grossProfit: 4000, poNo: 'PO-1', date: '2026-10-23' };
+
+test('ต่างจังหวัด: ใช้อัตรา 90 บาท และต้องกรอกข้อมูลตามใบแจ้ง', () => {
+  const S = ready();
+  const q = J(S.quote({ branchCode: '00005', mapsUrl: korat.mapsUrl, value: 20000 }));
+  assert.equal(q.metro, false);
+  assert.equal(q.rounds.length, 0);
+  assert.equal(q.feePolicy, S.policyFee_(q.distanceKm, 20000, null, 90));
+  assert.equal(q.upcountryEarliest, '2026-10-22');
+  assert.throws(() => S.submitRequest({ ...korat, productType: '' }), /ประเภทสินค้า/);
+  assert.throws(() => S.submitRequest({ ...korat, grossProfit: '' }), /กำไรขั้นต้น/);
+  assert.throws(() => S.submitRequest({ ...korat, date: '2026-10-21' }), /ต้องไม่ก่อน/);
+  const r = S.submitRequest(korat);
+  assert.equal(r.status, 'รออนุมัติ');
+  const v = J(S.branchRequests('00005')).find(x => x.id === r.id);
+  assert.equal(v.upcountry, true);
+  assert.equal(v.plate, '');
+});
+
+test('ต่างจังหวัด: อนุมัติทีละฝั่ง และคลังต้องประเมินค่าใช้จ่าย', () => {
+  const S = ready();
+  S.__sheets['ตั้งค่า']._rows.find(x => x[0] === 'warehouseLocation')[1] = '13.70,100.40';
+  const r = S.submitRequest(korat);
+  const wh = ['wh', 'klangsk', 'จรินทร มีเจริญ'];
+  assert.equal(J(S.approvals(...wh)).length, 0);                       // คลังยังไม่เห็นจนกว่า CEO อนุมัติ
+  S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
+  assert.throws(() => S.decide(...wh.slice(0, 2), wh[2], r.id, true, '', { date: '2026-10-24', plate: 'บห 1782' }), /ยังไม่ถึงขั้น/);
+  S.decide('ceo', 'ceoppp', 'CEO', r.id, true, '', null);
+  const list = J(S.approvals(...wh));
+  assert.equal(list.length, 1);
+  assert.ok(list[0].whRoundTripKm > 0);                                  // คำนวณระยะไป-กลับจากคลังให้
+  assert.throws(() => S.decide('wh', 'klangsk', wh[2], r.id, true, '', { date: '2026-10-24', plate: 'บห 1782', cost: {} }), /ไป-กลับ/);
+  const out = J(S.decide('wh', 'klangsk', wh[2], r.id, true, '', { date: '2026-10-24', plate: 'บห 1782',
+    cost: { roundTripKm: 496, kmPerLiter: 8, fuelPrice: 32, labor: 300, toll: 300, lodging: 500, privateCost: 8000 } }));
+  assert.equal(out.status, 'รออนุมัติ');
+  assert.equal(out.cost.fuel, 1984);
+  assert.equal(out.cost.depreciation, 2480);
+  assert.equal(out.costTotal, 1984 + 2480 + 300 + 300 + 500);
+  assert.equal(S.decide('coo', 'cooqqq', 'COO', r.id, true, '', null).status, 'ยืนยันแล้ว');
+});
+
+test('ต่างจังหวัด: ไม่เลื่อนอัตโนมัติ และไม่กินที่รอบกรุงเทพฯ', () => {
+  const S = ready();
+  const r = S.submitRequest({ ...korat, date: '2026-10-22' });
+  S.__setNow('2026-10-21T09:05:00Z');
+  S.autoPostpone();
+  assert.equal(J(S.branchRequests('00005')).find(x => x.id === r.id).date, '2026-10-22');
 });
 
 test('ยอดต่ำกว่า 3,000 นอกเส้นทาง: อนุมัติสองฝั่งพร้อมกันจนยืนยัน', () => {

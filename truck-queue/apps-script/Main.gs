@@ -24,6 +24,11 @@ function setup() {
   textColumns_(SHEET.SETTING, ['value']);
 
   seedIfEmpty_(SHEET.SETTING, DEFAULT_SETTINGS.map(function (d) { return { key: d[0], value: d[1], note: d[2] }; }));
+  // รันซ้ำหลังอัปเดตโค้ด: เพิ่มค่าตั้งค่าใหม่ที่ยังไม่มีในชีต (ไม่แตะค่าที่มีอยู่)
+  var haveKeys = readAll_(SHEET.SETTING).map(function (r) { return r.key; });
+  DEFAULT_SETTINGS.forEach(function (d) {
+    if (haveKeys.indexOf(d[0]) === -1) append_(SHEET.SETTING, { key: d[0], value: d[1], note: d[2] });
+  });
   seedIfEmpty_(SHEET.TIER, DEFAULT_TIERS.map(function (t) { return { minValue: t[0], freeKm: t[1] }; }));
   seedIfEmpty_(SHEET.BRANCH, seedBranches_().map(function (b) {
     return { code: b[0], name: b[1], zone: b[2], zoneManager: b[3], mapsUrl: b[4], status: b[5] };
@@ -83,7 +88,7 @@ function include_(name) { return html_(name); }
 /** ฝังฟังก์ชันจาก Logic.gs ให้หน้าเว็บใช้ — สูตรค่าส่งมีที่เดียว */
 function logicSource_() {
   return 'var STATUS=' + JSON.stringify(STATUS) + ';var DEFAULT_TIERS=' + JSON.stringify(DEFAULT_TIERS) + ';' +
-    [freeKm_, policyFee_, addDays_, weekday_, thaiDate_].map(String).join('\n') +
+    [freeKm_, policyFee_, addDays_, weekday_, thaiDate_, upcountryCost_].map(String).join('\n') +
     'var THAI_DAYS=' + JSON.stringify(THAI_DAYS) + ';var THAI_MONTHS=' + JSON.stringify(THAI_MONTHS) + ';';
 }
 

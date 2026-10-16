@@ -4,6 +4,7 @@
  */
 
 var TZ = 'Asia/Bangkok';
+var KIND_UP = 'ต่างจังหวัด';
 
 var SHEET = {
   REQ: 'คำขอ',
@@ -30,7 +31,11 @@ COLS[SHEET.REQ] = [
   ['driver', 'คนขับ'], ['onRoute', 'อยู่บนเส้นทาง'], ['needsApproval', 'ต้องอนุมัติ'], ['status', 'สถานะ'],
   ['apprZone', 'ผจก.เขต'], ['apprCeo', 'CEO'], ['apprWh', 'คลัง (อนุมัติ)'], ['apprCoo', 'COO'],
   ['reason', 'เหตุผลล่าสุด'], ['updatedAt', 'แก้ไขล่าสุด'], ['updatedBy', 'แก้ไขโดย'],
-  ['legacy', 'ข้อมูลเก่า'], ['legacyText', 'ข้อความเดิม']
+  ['legacy', 'ข้อมูลเก่า'], ['legacyText', 'ข้อความเดิม'],
+  // ส่งต่างจังหวัด (เพิ่มท้ายตาราง — ห้ามย้ายขึ้นไป)
+  ['kind', 'ประเภทงาน'], ['poNo', 'เลขที่ใบสั่งซื้อ'], ['grossProfit', 'กำไรขั้นต้น (บาท)'],
+  ['grossProfitPct', 'กำไรขั้นต้น (%)'], ['productType', 'ประเภทสินค้า'], ['collectFee', 'เก็บค่าส่งลูกค้า'],
+  ['whRoundTripKm', 'ระยะไป-กลับจากคลัง (กม.)'], ['cost', 'ประมาณการค่าใช้จ่าย (JSON)'], ['costTotal', 'รวมค่าใช้จ่ายประมาณการ']
 ];
 COLS[SHEET.LOG] = [['ts', 'เวลา'], ['id', 'เลขคิว'], ['actor', 'ผู้ทำ'], ['action', 'การกระทำ'], ['detail', 'รายละเอียด']];
 COLS[SHEET.BRANCH] = [
@@ -55,7 +60,13 @@ var DEFAULT_SETTINGS = [
   ['horizonDays', 14, 'เปิดให้จองล่วงหน้ากี่วัน'],
   ['pilotBranches', '00005', 'รหัสสาขาที่เปิดใช้ (คั่นด้วย ,) · เว้นว่าง = ทุกสาขา'],
   ['ceoName', 'นพนารี พัวรัตนอรุณกร', 'CEO'],
-  ['cooName', 'วิภวานี วิทยานนท์', 'COO']
+  ['cooName', 'วิภวานี วิทยานนท์', 'COO'],
+  ['upcountryRatePer10Km', 90, 'ค่าส่งส่วนที่เกิน ทุก 10 กม. (ต่างจังหวัด)'],
+  ['upcountryLeadDays', 3, 'ส่งต่างจังหวัด: เสนอวันส่งได้เร็วสุดกี่วันหลังวันที่ขอ'],
+  ['warehouseLocation', '', 'พิกัดคลัง "lat,lng" หรือลิงก์ Google Maps — ใช้คำนวณระยะไป-กลับส่งต่างจังหวัด'],
+  ['kmPerLiter', 8, 'อัตราสิ้นเปลืองน้ำมันตั้งต้น (กม./ลิตร)'],
+  ['fuelPrice', 33, 'ราคาน้ำมันตั้งต้น (บาท/ลิตร)'],
+  ['depreciationPerKm', 5, 'ค่าเสื่อมรถ (บาท/กม.)']
 ];
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
@@ -101,7 +112,8 @@ function settings_() {
   var s = {};
   readAll_(SHEET.SETTING).forEach(function (r) { s[r.key] = r.value; });
   DEFAULT_SETTINGS.forEach(function (d) { if (s[d[0]] === undefined || s[d[0]] === '') s[d[0]] = d[1]; });
-  ['cutoffHour', 'ratePer10Km', 'minValue', 'onRouteKm', 'horizonDays'].forEach(function (k) { s[k] = Number(s[k]); });
+  ['cutoffHour', 'ratePer10Km', 'minValue', 'onRouteKm', 'horizonDays', 'upcountryRatePer10Km', 'upcountryLeadDays',
+    'kmPerLiter', 'fuelPrice', 'depreciationPerKm'].forEach(function (k) { s[k] = Number(s[k]); });
   return s;
 }
 
@@ -160,7 +172,7 @@ function findRequest_(id) {
 function usedSlots_(reqs, excludeId) {
   var used = {};
   reqs.forEach(function (r) {
-    if (r.id === excludeId || !r.date || !r.plate || r.urgent === true || r.legacy === true) return;
+    if (r.id === excludeId || !r.date || !r.plate || r.urgent === true || r.legacy === true || r.kind === KIND_UP) return;
     if (HOLDING_STATUSES.indexOf(r.status) === -1) return;
     var k = slotKey_(String(r.date), String(r.plate));
     used[k] = (used[k] || 0) + 1;

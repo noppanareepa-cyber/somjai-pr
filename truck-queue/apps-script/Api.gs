@@ -33,7 +33,9 @@ function getBootstrap() {
   var staff = readAll_(SHEET.STAFF);
   return {
     today: today_(),
-    settings: { cutoffHour: s.cutoffHour, ratePer10Km: s.ratePer10Km, minValue: s.minValue, tiers: tiers_() },
+    settings: { cutoffHour: s.cutoffHour, ratePer10Km: s.ratePer10Km, minValue: s.minValue, tiers: tiers_(),
+      upcountryRatePer10Km: s.upcountryRatePer10Km, kmPerLiter: s.kmPerLiter, fuelPrice: s.fuelPrice,
+      depreciationPerKm: s.depreciationPerKm },
     branches: branches.filter(function (b) { return b.status === 'เปิด'; }).map(function (b) {
       return { code: b.code, name: b.name, zone: b.zone, zoneManager: b.zoneManager, bookable: bookableBranch_(b, s), hasCoords: !!(b.lat && b.lng) };
     }),
@@ -77,7 +79,8 @@ function quote(q) {
   var km = drivingKm_(branch, loc);
   var value = Number(q.value) || 0;
 
-  var rounds = bookableRounds_({
+  var rate = metro ? s.ratePer10Km : s.upcountryRatePer10Km;
+  var rounds = !metro ? [] : bookableRounds_({
     branchCode: branch.code, schedule: schedule_(), holidays: holidays_(),
     nowYmd: today_(), nowHour: nowHour_(), cutoffHour: s.cutoffHour,
     horizonDays: s.horizonDays, used: usedSlots_(requests_())
@@ -89,8 +92,9 @@ function quote(q) {
 
   return {
     lat: loc.lat, lng: loc.lng, province: loc.province, formatted: loc.formatted, metro: metro,
-    distanceKm: km, freeKm: freeKm_(value, tiers_()), feePolicy: policyFee_(km, value, tiers_(), s.ratePer10Km),
-    rounds: rounds, urgentEarliest: earliestDate_(today_(), nowHour_(), s.cutoffHour)
+    distanceKm: km, freeKm: freeKm_(value, tiers_()), feePolicy: policyFee_(km, value, tiers_(), rate), ratePer10Km: rate,
+    rounds: rounds, urgentEarliest: earliestDate_(today_(), nowHour_(), s.cutoffHour),
+    upcountryEarliest: addDays_(today_(), Math.max(1, s.upcountryLeadDays))
   };
 }
 
@@ -109,8 +113,7 @@ function submitRequest(f) {
   if (STOCK_OPTIONS.indexOf(stock) === -1) throw new Error('กรุณาเลือกว่าของอยู่ที่ไหน');
 
   var q = quote({ branchCode: f.branchCode, mapsUrl: f.mapsUrl, address: f.address, value: value });
-  if (!q.metro) throw new Error('ปลายทางอยู่ต่างจังหวัด (' + (q.province || 'ไม่ทราบจังหวัด') +
-    ') กรุณากรอก "ใบแจ้งขอรอบรถส่งสินค้าลูกค้าต่างจังหวัด"');
+  if (!q.metro) return submitUpcountry_(f, q, s);
 
   var lowMargin = f.lowMargin === true;
   var feeCharged = f.feeCharged === '' || f.feeCharged === undefined ? q.feePolicy : Number(f.feeCharged);
@@ -156,6 +159,55 @@ function submitRequest(f) {
   });
 }
 
+/**
+ * ขอรอบรถส่งลูกค้าต่างจังหวัด (แทนใบแจ้งกระดาษ ตาม MEMO COO009/69)
+ * อนุมัติทีละฝั่ง: ผจก.เขต → CEO แล้วคลังประเมินค่าใช้จ่าย/ยืนยันวัน → COO
+ */
+function submitUpcountry_(f, q, s) {
+  var requester = clean_(f.requester, 40);
+  var productType = clean_(f.productType, 100);
+  var phone = clean_(f.phone, 40);
+  var gp = f.grossProfit === '' || f.grossProfit === undefined ? NaN : Number(f.grossProfit);
+  if (!productType) throw new Error('กรุณาใส่ประเภทสินค้า');
+  if (!phone) throw new Error('กรุณาใส่เบอร์ติดต่อลูกค้า');
+  if (!(gp >= 0)) throw new Error('กรุณาใส่กำไรขั้นต้น (บาท)');
+  var date = clean_(f.date, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < q.upcountryEarliest) {
+    throw new Error('วันส่งต่างจังหวัดต้องไม่ก่อน ' + thaiDate_(q.upcountryEarliest));
+  }
+  if (holidays_()[date] || weekday_(date) === 0) throw new Error('วันที่เลือกเป็นวันหยุด');
+  var collect = f.collectFee !== false;
+  var lowMargin = f.lowMargin === true;
+  var feeCharged = !collect ? 0 : (f.feeCharged === '' || f.feeCharged === undefined ? q.feePolicy : Number(f.feeCharged));
+  if (!(feeCharged >= 0)) throw new Error('ค่าส่งไม่ถูกต้อง');
+  var feeReason = clean_(f.feeReason, 200);
+  if (!lowMargin && feeCharged < q.feePolicy && !feeReason) {
+    throw new Error('เก็บค่าส่งต่ำกว่านโยบาย (' + q.feePolicy + ' บาท) กรุณาใส่เหตุผล');
+  }
+  var whKm = '';
+  var wh = parseLatLng_(s.warehouseLocation) || (s.warehouseLocation ? locate_(String(s.warehouseLocation), '') : null);
+  if (wh) { try { whKm = Math.round(drivingKm_(wh, q) * 2 * 10) / 10; } catch (e) { whKm = ''; } }
+  var value = Number(f.value);
+  return withLock_(function () {
+    var branch = branchMap_()[f.branchCode];
+    var rec = {
+      id: nextId_(), createdAt: nowStr_(), requester: requester, branchCode: branch.code, branchName: branch.name,
+      customer: clean_(f.customer, 200), address: clean_(f.address, 300) || q.formatted, mapsUrl: clean_(f.mapsUrl, 500),
+      lat: q.lat, lng: q.lng, province: q.province, distanceKm: q.distanceKm, qty: clean_(f.qty, 100), value: value,
+      trNo: clean_(f.trNo, 40), feePolicy: lowMargin ? '' : q.feePolicy, feeCharged: feeCharged, feeReason: feeReason,
+      stock: clean_(f.stock, 30), phone: phone, timeWindow: clean_(f.timeWindow, 100), note: clean_(f.note, 500),
+      lowMargin: lowMargin, urgent: false, date: date, plate: '', driver: '', onRoute: false, needsApproval: true,
+      status: STATUS.APPROVAL, updatedAt: nowStr_(), updatedBy: requester, legacy: false,
+      kind: KIND_UP, poNo: clean_(f.poNo, 40), grossProfit: gp,
+      grossProfitPct: value > 0 ? Math.round(gp / value * 1000) / 10 : '', productType: productType,
+      collectFee: collect, whRoundTripKm: whKm
+    };
+    append_(SHEET.REQ, rec);
+    log_(rec.id, requester, 'ขอรอบรถต่างจังหวัด', q.province + ' · ' + q.distanceKm + ' กม. · เสนอวัน ' + thaiDate_(date));
+    return { id: rec.id, status: rec.status, date: date, dateLabel: thaiDate_(date) };
+  });
+}
+
 /** คำขอของสาขา: ย้อนหลัง 30 วันและล่วงหน้า */
 function branchRequests(branchCode) {
   var from = addDays_(today_(), -30);
@@ -168,6 +220,7 @@ function publicView_(r) {
   return { id: r.id, requester: r.requester, customer: r.customer, qty: r.qty, date: String(r.date),
     dateLabel: thaiDate_(String(r.date)), plate: r.plate, status: r.status, reason: r.reason,
     feeCharged: r.feeCharged, urgent: r.urgent === true, needsApproval: r.needsApproval === true,
+    upcountry: r.kind === KIND_UP, province: r.province,
     approvals: { zone: r.apprZone, ceo: r.apprCeo, wh: r.apprWh, coo: r.apprCoo } };
 }
 
@@ -202,6 +255,11 @@ function fullView_(r) {
   });
   v.lowMargin = r.lowMargin === true;
   v.underPolicy = !v.lowMargin && Number(r.feeCharged) < Number(r.feePolicy);
+  if (r.kind === KIND_UP) {
+    ['poNo', 'grossProfit', 'grossProfitPct', 'productType', 'whRoundTripKm', 'costTotal'].forEach(function (k) { v[k] = r[k]; });
+    v.collectFee = r.collectFee !== false;
+    try { v.cost = r.cost ? JSON.parse(r.cost) : null; } catch (e) { v.cost = null; }
+  }
   return v;
 }
 
@@ -317,10 +375,24 @@ function approvals(role, pin, actor) {
   var bmap = branchMap_();
   return requests_().filter(function (r) {
     if (r.status !== STATUS.APPROVAL) return false;
-    if (!approvalStepFor_(role, apprOf_(r))) return false;
+    if (!approvalStepFor_(role, apprOf_(r), r.kind === KIND_UP)) return false;
     if (role === 'zone') return (bmap[String(r.branchCode)] || {}).zoneManager === actor;
     return true;
   }).map(fullView_);
+}
+
+/** ข้อมูลประมาณการจากคลัง (ตัวเลขทุกช่อง + ข้อความบางช่อง) */
+function upcountryCostInput_(c) {
+  c = c || {};
+  var s = settings_();
+  var num = function (k, d) { var x = Number(c[k]); return x >= 0 && c[k] !== '' && c[k] !== undefined ? x : d; };
+  return {
+    roundTripKm: num('roundTripKm', 0), kmPerLiter: num('kmPerLiter', s.kmPerLiter), fuelPrice: num('fuelPrice', s.fuelPrice),
+    depreciationPerKm: s.depreciationPerKm, days: num('days', 1), staff: num('staff', 2),
+    labor: num('labor', 0), toll: num('toll', 0), lodging: num('lodging', 0), other: num('other', 0),
+    privateCost: num('privateCost', 0), branchGoods: c.branchGoods === true, branchGoodsValue: num('branchGoodsValue', 0),
+    scheduleImpact: c.scheduleImpact === true, impactNote: clean_(c.impactNote, 200), departTime: clean_(c.departTime, 20)
+  };
 }
 
 function apprOf_(r) { return { zone: r.apprZone, ceo: r.apprCeo, wh: r.apprWh, coo: r.apprCoo }; }
@@ -335,7 +407,8 @@ function decide(role, pin, actor, id, approve, reason, round) {
   return withLock_(function () {
     var r = findRequest_(id);
     if (r.status !== STATUS.APPROVAL) throw new Error('รายการนี้ไม่ได้รออนุมัติแล้ว');
-    var step = approvalStepFor_(role, apprOf_(r));
+    var up = r.kind === KIND_UP;
+    var step = approvalStepFor_(role, apprOf_(r), up);
     if (!step) throw new Error('ยังไม่ถึงขั้นของคุณ หรืออนุมัติไปแล้ว');
     if (role === 'zone' && (branchMap_()[String(r.branchCode)] || {}).zoneManager !== actor) {
       throw new Error('สาขานี้ไม่อยู่ในเขตของคุณ');
@@ -347,6 +420,13 @@ function decide(role, pin, actor, id, approve, reason, round) {
       if (plate) { r.plate = plate; r.driver = (trucks_().filter(function (t) { return t.plate === plate; })[0] || {}).driver || ''; }
     }
     if (role === 'wh' && approve && !r.plate) throw new Error('กรุณาเลือกรถก่อนอนุมัติ');
+    if (role === 'wh' && approve && up) {
+      var c = upcountryCostInput_(round && round.cost);
+      if (!(c.roundTripKm > 0)) throw new Error('กรุณาใส่ระยะทางไป-กลับจากคลัง');
+      var est = upcountryCost_(c);
+      c.fuel = est.fuel; c.depreciation = est.depreciation; c.total = est.total;
+      r.cost = JSON.stringify(c); r.costTotal = est.total;
+    }
     var stamp = (approve ? 'อนุมัติ' : 'ไม่อนุมัติ') + ': ' + actor + ' ' + nowStr_() + (reason ? ' · ' + reason : '');
     r[{ zone: 'apprZone', ceo: 'apprCeo', wh: 'apprWh', coo: 'apprCoo' }[step]] = stamp;
     r.status = approvalStatus_(apprOf_(r));
@@ -416,7 +496,7 @@ function autoPostpone() {
   withLock_(function () {
     var reqs = requests_();
     reqs.forEach(function (r) {
-      if (r.status !== STATUS.APPROVAL || String(r.date) > tomorrow) return;
+      if (r.status !== STATUS.APPROVAL || String(r.date) > tomorrow || r.kind === KIND_UP) return;
       var next = bookableRounds_({
         branchCode: String(r.branchCode), schedule: schedule_(), holidays: holidays_(),
         nowYmd: today_(), nowHour: 23, cutoffHour: s.cutoffHour, horizonDays: s.horizonDays,

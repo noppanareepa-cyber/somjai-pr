@@ -181,17 +181,39 @@ function approvalStatus_(appr) {
   return ok('ceo') && ok('coo') ? STATUS.CONFIRMED : STATUS.APPROVAL;
 }
 
-/** ขั้นอนุมัติที่บทบาทนี้ทำได้ตอนนี้ (null = ยังไม่ถึงคิว / ทำไปแล้ว) */
-function approvalStepFor_(role, appr) {
+/**
+ * ขั้นอนุมัติที่บทบาทนี้ทำได้ตอนนี้ (null = ยังไม่ถึงคิว / ทำไปแล้ว)
+ * sequential = ส่งต่างจังหวัด: คลังเริ่มประเมินได้หลัง CEO อนุมัติแล้ว (ตามใบแจ้งกระดาษ)
+ */
+function approvalStepFor_(role, appr, sequential) {
   var done = function (k) { return !!String(appr[k] || ''); };
   if (role === 'zone') return done('zone') ? null : 'zone';
   if (role === 'ceo') return done('zone') && !done('ceo') ? 'ceo' : null;
-  if (role === 'wh') return done('wh') ? null : 'wh';
+  if (role === 'wh') {
+    if (sequential && String(appr.ceo || '').indexOf('อนุมัติ') !== 0) return null;
+    return done('wh') ? null : 'wh';
+  }
   if (role === 'coo') return done('wh') && !done('coo') ? 'coo' : null;
   return null;
 }
 
-var THAI_DAYS = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+/**
+ * ประมาณการค่าใช้จ่ายออกรถส่งต่างจังหวัด (ตามใบแจ้งขอรอบรถส่งสินค้าลูกค้าต่างจังหวัด)
+ * c: {roundTripKm, kmPerLiter, fuelPrice, depreciationPerKm, labor, toll, lodging, other, privateCost}
+ * รวม = ①ค่าน้ำมัน + ②ค่าเสื่อม + ③ค่าแรง/OT/เบี้ยเลี้ยง + ④ทางด่วน + ⑤ที่พัก + ⑥อื่นๆ
+ */
+function upcountryCost_(c) {
+  var n = function (v) { var x = Number(v); return x > 0 ? x : 0; };
+  var km = n(c.roundTripKm), kmpl = n(c.kmPerLiter);
+  var fuel = kmpl ? Math.round(km / kmpl * n(c.fuelPrice)) : 0;
+  var depreciation = Math.round(km * n(c.depreciationPerKm));
+  var total = fuel + depreciation + n(c.labor) + n(c.toll) + n(c.lodging) + n(c.other);
+  var privateCost = n(c.privateCost);
+  return { fuel: fuel, depreciation: depreciation, total: total,
+    privateCost: privateCost, cheaperPrivate: privateCost > 0 && privateCost < total };
+}
+
+var THAI_DAYS =['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 var THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
 /** '2026-10-20' → 'อ. 20 ต.ค. 69' */
