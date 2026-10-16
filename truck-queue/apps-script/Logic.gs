@@ -103,6 +103,16 @@ function weekday_(ymd) {
 }
 
 /** วันแรกที่จองได้: ก่อนเวลาตัดรอบ → พรุ่งนี้ · หลังเวลาตัดรอบ → มะรืน */
+/** วันที่ถัดจากวันนี้ไป n วันทำการ (จันทร์–เสาร์ ไม่นับวันหยุด) — ใช้กับกำหนดขออนุมัติล่วงหน้า */
+function addWorkDays_(ymd, n, holidays) {
+  var d = ymd, c = 0;
+  while (c < n) {
+    d = addDays_(d, 1);
+    if (weekday_(d) !== 0 && !(holidays && holidays[d])) c++;
+  }
+  return d;
+}
+
 function earliestDate_(nowYmd, nowHour, cutoffHour) {
   return addDays_(nowYmd, nowHour < cutoffHour ? 1 : 2);
 }

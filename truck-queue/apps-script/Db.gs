@@ -65,7 +65,8 @@ var DEFAULT_SETTINGS = [
   ['ceoName', 'นพนารี พัวรัตนอรุณกร', 'CEO'],
   ['cooName', 'วิภวานี วิทยานนท์', 'COO'],
   ['upcountryRatePer10Km', 90, 'ค่าส่งส่วนที่เกิน ทุก 10 กม. (ต่างจังหวัด)'],
-  ['upcountryLeadDays', 3, 'ส่งต่างจังหวัด: เสนอวันส่งได้เร็วสุดกี่วันหลังวันที่ขอ'],
+  ['upcountryLeadWorkDays', 5, 'ส่งต่างจังหวัด: ต้องขออนุมัติล่วงหน้าอย่างน้อยกี่วันทำการ (จ.–ส. ไม่นับวันหยุดในชีต วันหยุด)'],
+  ['approvalLeadWorkDays', 3, 'กรุงเทพฯ/ปริมณฑล งานที่ต้องอนุมัติ (ยอดต่ำนอกเส้นทาง): ต้องขอล่วงหน้าอย่างน้อยกี่วันทำการ'],
   ['warehouseLocation', '', 'พิกัดคลัง "lat,lng" หรือลิงก์ Google Maps — ใช้คำนวณระยะไป-กลับส่งต่างจังหวัด'],
   ['kmPerLiter', 8, 'อัตราสิ้นเปลืองน้ำมันตั้งต้น (กม./ลิตร)'],
   ['fuelPrice', 33, 'ราคาน้ำมันตั้งต้น (บาท/ลิตร)'],
@@ -115,7 +116,7 @@ function settings_() {
   var s = {};
   readAll_(SHEET.SETTING).forEach(function (r) { s[r.key] = r.value; });
   DEFAULT_SETTINGS.forEach(function (d) { if (s[d[0]] === undefined || s[d[0]] === '') s[d[0]] = d[1]; });
-  ['cutoffHour', 'ratePer10Km', 'minValue', 'onRouteKm', 'horizonDays', 'upcountryRatePer10Km', 'upcountryLeadDays',
+  ['cutoffHour', 'ratePer10Km', 'minValue', 'onRouteKm', 'horizonDays', 'upcountryRatePer10Km', 'upcountryLeadWorkDays', 'approvalLeadWorkDays',
     'kmPerLiter', 'fuelPrice', 'depreciationPerKm'].forEach(function (k) { s[k] = Number(s[k]); });
   return s;
 }

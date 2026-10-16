@@ -35,7 +35,7 @@ function getBootstrap() {
     today: today_(),
     settings: { cutoffHour: s.cutoffHour, ratePer10Km: s.ratePer10Km, minValue: s.minValue, tiers: tiers_(),
       upcountryRatePer10Km: s.upcountryRatePer10Km, kmPerLiter: s.kmPerLiter, fuelPrice: s.fuelPrice,
-      depreciationPerKm: s.depreciationPerKm },
+      depreciationPerKm: s.depreciationPerKm, upcountryLeadWorkDays: s.upcountryLeadWorkDays, approvalLeadWorkDays: s.approvalLeadWorkDays },
     branches: branches.filter(function (b) { return b.status === 'เปิด'; })
       .sort(function (a, b) { return a.code < b.code ? -1 : a.code > b.code ? 1 : 0; }).map(function (b) {
       return { code: b.code, name: b.name, zone: b.zone, zoneManager: b.zoneManager, bookable: bookableBranch_(b, s), hasCoords: !!(b.lat && b.lng) };
@@ -92,11 +92,17 @@ function quote(q) {
       needsApproval: needsApproval_(value, onRoute, s.minValue), label: thaiDate_(r.date) };
   });
 
+  var hol = holidays_();
+  var urgentEarliest = earliestDate_(today_(), nowHour_(), s.cutoffHour);
+  var approvalEarliest = addWorkDays_(today_(), s.approvalLeadWorkDays, hol);
+  if (approvalEarliest < urgentEarliest) approvalEarliest = urgentEarliest;
+  rounds.forEach(function (r) { r.tooSoon = r.needsApproval && r.date < approvalEarliest; });
   return {
     lat: loc.lat, lng: loc.lng, province: loc.province, formatted: loc.formatted, metro: metro,
     distanceKm: km, freeKm: freeKm_(value, tiers_()), feePolicy: policyFee_(km, value, tiers_(), rate), ratePer10Km: rate,
-    rounds: rounds, urgentEarliest: earliestDate_(today_(), nowHour_(), s.cutoffHour),
-    upcountryEarliest: addDays_(today_(), Math.max(1, s.upcountryLeadDays))
+    rounds: rounds, urgentEarliest: urgentEarliest,
+    approvalEarliest: approvalEarliest, approvalLeadWorkDays: s.approvalLeadWorkDays,
+    upcountryEarliest: addWorkDays_(today_(), s.upcountryLeadWorkDays, hol), upcountryLeadWorkDays: s.upcountryLeadWorkDays
   };
 }
 
@@ -116,6 +122,7 @@ function submitRequest(f) {
 
   var po = decodePoFiles_(f.poFiles);
   var q = quote({ branchCode: f.branchCode, mapsUrl: f.mapsUrl, address: f.address, value: value });
+  checkArea_(f.area, q);
   if (!q.metro) return submitUpcountry_(f, q, s, po);
 
   var lowMargin = f.lowMargin === true;
@@ -142,6 +149,9 @@ function submitRequest(f) {
       date = round.date; plate = round.plate; onRoute = round.onRoute;
     }
     var needsApproval = needsApproval_(value, onRoute, s.minValue);
+    if (needsApproval && date < q.approvalEarliest) {
+      throw new Error('งานที่ต้องอนุมัติต้องขอล่วงหน้าอย่างน้อย ' + s.approvalLeadWorkDays + ' วันทำการ — เลือกวันส่งได้ตั้งแต่ ' + thaiDate_(q.approvalEarliest));
+    }
     var truck = trucks_().filter(function (t) { return t.plate === plate; })[0];
     var branch = branchMap_()[f.branchCode];
     var rec = {
@@ -161,6 +171,15 @@ function submitRequest(f) {
       (needsApproval ? ' · ต้องอนุมัติ' : ''));
     return { id: rec.id, status: rec.status, date: date, dateLabel: thaiDate_(date) };
   });
+}
+
+/** กล่องที่สาขาเลือก (กรุงเทพฯ/ปริมณฑล หรือ ต่างจังหวัด) ต้องตรงกับจังหวัดที่ระบบหาได้จากที่อยู่ลูกค้า */
+function checkArea_(area, q) {
+  if (area !== 'metro' && area !== 'up') throw new Error('กรุณาเลือกว่าส่งลูกค้า กรุงเทพฯ และปริมณฑล หรือ ต่างจังหวัด');
+  if ((area === 'metro') !== q.metro) {
+    throw new Error('ลูกค้าอยู่ ' + (q.province || 'จังหวัดที่ตรวจไม่ได้') + ' ซึ่งเป็น' + (q.metro ? 'กรุงเทพฯ และปริมณฑล' : 'ต่างจังหวัด') +
+      ' แต่เลือกไว้เป็น' + (area === 'metro' ? 'กรุงเทพฯ และปริมณฑล' : 'ต่างจังหวัด') + ' กรุณาเลือกใหม่ หรือตรวจลิงก์แผนที่');
+  }
 }
 
 /**
@@ -183,7 +202,7 @@ function submitUpcountry_(f, q, s, po) {
   if (!po || !po.length) throw new Error('ส่งต่างจังหวัดต้องแนบใบสั่งซื้ออย่างน้อย 1 ไฟล์ (รูปหรือ PDF)');
   var date = clean_(f.date, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < q.upcountryEarliest) {
-    throw new Error('วันส่งต่างจังหวัดต้องไม่ก่อน ' + thaiDate_(q.upcountryEarliest));
+    throw new Error('ส่งต่างจังหวัดต้องขออนุมัติล่วงหน้าอย่างน้อย ' + s.upcountryLeadWorkDays + ' วันทำการ — เลือกวันได้ตั้งแต่ ' + thaiDate_(q.upcountryEarliest));
   }
   if (holidays_()[date] || weekday_(date) === 0) throw new Error('วันที่เลือกเป็นวันหยุด');
   var collect = f.collectFee !== false;

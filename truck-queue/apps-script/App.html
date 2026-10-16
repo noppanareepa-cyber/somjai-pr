@@ -194,6 +194,10 @@ function renderForm() {
   }
   PO = [];
   pane.innerHTML = '<form id="f" class="card" autocomplete="off">' +
+    '<label>ส่งสินค้าให้ลูกค้า</label><div class="seg">' +
+      '<label><input type="radio" name="area" value="metro"><span>กรุงเทพฯ และปริมณฑล</span></label>' +
+      '<label><input type="radio" name="area" value="up"><span>ต่างจังหวัด</span></label></div>' +
+    '<div class="small muted" id="areaHint">ปริมณฑล = นนทบุรี สมุทรปราการ สมุทรสาคร นครปฐม ปทุมธานี</div>' +
     '<label>ลูกค้า / หน่วยงาน</label><input type="text" name="customer">' +
     '<label>ลิงก์ Google Maps ของลูกค้า</label><input type="text" name="mapsUrl" placeholder="https://maps.app.goo.gl/…">' +
     '<label>ที่อยู่ <span class="opt">(ถ้าไม่มีลิงก์ ต้องใส่)</span></label><textarea name="address"></textarea>' +
@@ -207,6 +211,7 @@ function renderForm() {
     '<div id="qres"></div></form>';
   var f = $('#f');
   poPicker($('#poBox'), PO, PO_MAX);
+  f.querySelectorAll('input[name=area]').forEach(function (r) { r.onchange = function () { areaChanged(f); }; });
   $('#qbtn').onclick = function () { doQuote(f); };
   ['mapsUrl', 'address'].forEach(function (n) { f.elements[n].oninput = function () { Q = null; pick = null; $('#qres').innerHTML = ''; }; });
   f.elements.value.oninput = function () { if (Q) renderQuote(f); };
@@ -214,7 +219,21 @@ function renderForm() {
   f.onsubmit = function (ev) { ev.preventDefault(); };
 }
 
+function areaOf(f) { return (f.querySelector('input[name=area]:checked') || {}).value || ''; }
+
+/** เปลี่ยนกล่อง กรุงเทพฯ/ต่างจังหวัด: บอกกำหนดล่วงหน้า และช่องใบสั่งซื้อบังคับหรือไม่ */
+function areaChanged(f) {
+  var a = areaOf(f), st = B.settings;
+  $('#areaHint').innerHTML = a === 'up'
+    ? '<b>ต่างจังหวัด:</b> ต้องขออนุมัติล่วงหน้าอย่างน้อย <b>' + st.upcountryLeadWorkDays + ' วันทำการ</b> (จ.–ส.) · ต้องแนบใบสั่งซื้อ · อนุมัติ ผจก.เขต → คลัง → CEO → COO'
+    : '<b>กรุงเทพฯ และปริมณฑล:</b> งานปกติจองรอบพรุ่งนี้ได้ถ้าขอก่อน ' + st.cutoffHour + ':00 น. · งานที่ต้องอนุมัติ (ยอดต่ำกว่า ' + money(st.minValue) + ' บาทนอกเส้นทาง) ต้องขอล่วงหน้า <b>' + st.approvalLeadWorkDays + ' วันทำการ</b>';
+  $('#poReq').textContent = a === 'up' ? '(ต่างจังหวัด — ต้องแนบอย่างน้อย 1 ไฟล์)' : '(ถ้ามี)';
+  $('#poReq').className = a === 'up' ? 'req' : 'opt';
+  if (Q) { pick = null; renderQuote(f); }
+}
+
 function doQuote(f) {
+  if (!areaOf(f)) { $('.seg').scrollIntoView({ block: 'center' }); return toast('กรุณาเลือกว่าส่งลูกค้า กรุงเทพฯ และปริมณฑล หรือ ต่างจังหวัด', true); }
   var btn = $('#qbtn'); btn.disabled = true; btn.textContent = 'กำลังคำนวณ…';
   call('quote', { branchCode: me.branchCode, mapsUrl: f.elements.mapsUrl.value, address: f.elements.address.value, value: f.elements.value.value })
     .then(function (q) { Q = q; pick = null; renderQuote(f); })
@@ -228,8 +247,16 @@ function renderQuote(f) {
   var fee = policyFee_(Q.distanceKm, value, B.settings.tiers, B.settings.ratePer10Km);
   var free = freeKm_(value, B.settings.tiers);
   var out = '';
-  $('#poReq').textContent = Q.metro ? '(ถ้ามี)' : '(ต่างจังหวัด — ต้องแนบอย่างน้อย 1 ไฟล์)';
-  $('#poReq').className = Q.metro ? 'opt' : 'req';
+  var area = areaOf(f);
+  if ((area === 'metro') !== Q.metro) {
+    var want = Q.metro ? 'metro' : 'up';
+    $('#qres').innerHTML = '<div class="note bad">ลูกค้าอยู่ <b>' + esc(Q.province || 'จังหวัดที่ตรวจไม่ได้') + '</b> ซึ่งเป็น<b>' + (Q.metro ? 'กรุงเทพฯ และปริมณฑล' : 'ต่างจังหวัด') +
+      '</b> แต่เลือกไว้เป็น' + (area === 'metro' ? 'กรุงเทพฯ และปริมณฑล' : 'ต่างจังหวัด') + ' · ถ้าที่อยู่ถูกต้อง กดเปลี่ยนด้านล่าง ถ้าไม่ถูก ให้แก้ลิงก์แผนที่แล้วตรวจใหม่</div>' +
+      (Q.formatted ? '<p class="small muted">ตำแหน่งที่พบ: ' + esc(Q.formatted) + ' · <a target="_blank" href="https://www.google.com/maps?q=' + Q.lat + ',' + Q.lng + '">ดูบนแผนที่</a></p>' : '') +
+      '<button type="button" class="btn block" id="fixArea">เปลี่ยนเป็น ' + (Q.metro ? 'กรุงเทพฯ และปริมณฑล' : 'ต่างจังหวัด') + '</button>';
+    $('#fixArea').onclick = function () { f.querySelector('input[name=area][value=' + want + ']').checked = true; areaChanged(f); };
+    return;
+  }
   if (!Q.metro) return renderUpcountry(f, value, low);
   out += '<div class="note ' + (low ? 'info' : fee ? 'warn' : 'ok') + '"><b>' + Q.distanceKm + ' กม.</b> จากสาขา · ' + esc(Q.province) +
     (low ? '<br>สินค้ากลุ่มกระดาษ/Low Margin — คลังพิจารณาค่าส่ง'
@@ -240,13 +267,14 @@ function renderQuote(f) {
   if (!Q.rounds.length) out += '<div class="note warn">ช่วง 2 สัปดาห์นี้ไม่มีรอบรถผ่านสาขา ติ๊ก "นอกรอบ/ด่วน" แล้วให้คลังจัดรถให้</div>';
   out += '<div class="rounds">' + Q.rounds.map(function (r, i) {
     var appr = value < B.settings.minValue && !r.onRoute;
-    var on = pick && pick.date === r.date && pick.plate === r.plate;
-    return '<button type="button" class="round' + (on ? ' on' : '') + '" data-i="' + i + '"' + (r.left <= 0 ? ' disabled' : '') + '>' +
-      '<b>' + esc(r.label) + '</b><small>' + (r.left <= 0 ? 'เต็มแล้ว' : 'เหลือ ' + r.left + ' จุด') + '</small>' +
+    var soon = appr && r.date < Q.approvalEarliest;   // งานต้องอนุมัติ ต้องขอล่วงหน้าตามวันทำการ
+    var on = pick && pick.date === r.date && pick.plate === r.plate && !soon;
+    return '<button type="button" class="round' + (on ? ' on' : '') + '" data-i="' + i + '"' + (r.left <= 0 || soon ? ' disabled' : '') + '>' +
+      '<b>' + esc(r.label) + '</b><small>' + (r.left <= 0 ? 'เต็มแล้ว' : soon ? 'ต้องขอล่วงหน้า ' + Q.approvalLeadWorkDays + ' วันทำการ' : 'เหลือ ' + r.left + ' จุด') + '</small>' +
       (appr ? '<br><span class="badge warn">ต้องอนุมัติ</span>' : r.onRoute ? '<br><span class="badge ok">อยู่บนเส้นทาง</span>' : '') + '</button>';
   }).join('') + '</div>';
   out += '<label class="check"><input type="checkbox" id="urgent"' + (pick && pick.urgent ? ' checked' : '') + '> นอกรอบ / ด่วน (คลังจัดรถเอง)</label>' +
-    '<div id="udate"' + (pick && pick.urgent ? '' : ' hidden') + '><label>วันที่ต้องการส่ง</label><input type="date" id="ud" min="' + Q.urgentEarliest + '" value="' + (pick && pick.urgent ? pick.date : '') + '"></div>';
+    '<div id="udate"' + (pick && pick.urgent ? '' : ' hidden') + '><label>วันที่ต้องการส่ง' + (value < B.settings.minValue ? ' <span class="opt">(ยอดต่ำ ต้องอนุมัติ — ขอล่วงหน้า ' + Q.approvalLeadWorkDays + ' วันทำการ)</span>' : '') + '</label><input type="date" id="ud" min="' + (value < B.settings.minValue ? Q.approvalEarliest : Q.urgentEarliest) + '" value="' + (pick && pick.urgent ? pick.date : '') + '"></div>';
   var chosen = pick && !pick.urgent ? Q.rounds.filter(function (r) { return r.date === pick.date && r.plate === pick.plate; })[0] : null;
   var needAppr = pick && value < B.settings.minValue && !(chosen && chosen.onRoute);
   if (needAppr) out += '<div class="note warn">ยอดต่ำกว่า ' + money(B.settings.minValue) + ' บาทและอยู่นอกเส้นทาง — ต้องได้รับอนุมัติจาก ผจก.เขต → CEO และ คลัง → COO ก่อนส่ง</div>';
@@ -297,7 +325,7 @@ function renderUpcountry(f, value, low) {
     '<div class="row" id="feeRow"' + (collect ? '' : ' hidden') + '><div><label>ค่าส่งที่เก็บ (บาท)</label><input type="number" name="feeCharged" inputmode="numeric" value="' + (low ? '' : fee) + '"></div>' +
     '<div><label>เลขที่ TR <span class="opt">(ถ้ามี)</span></label><input type="text" name="trNo" value="' + keep('trNo') + '"></div></div>' +
     '<div id="feeWhy" hidden><label>เหตุผลที่เก็บค่าส่งต่ำกว่านโยบาย</label><input type="text" name="feeReason" value="' + keep('feeReason') + '"></div>' +
-    '<label>วันที่ลูกค้าต้องการ (คลังจะยืนยันวันส่งจริง)</label><input type="date" id="ud" min="' + Q.upcountryEarliest + '" value="' + (pick && pick.date ? pick.date : '') + '">' +
+    '<label>วันที่ลูกค้าต้องการ <span class="opt">(ขออนุมัติล่วงหน้าอย่างน้อย ' + Q.upcountryLeadWorkDays + ' วันทำการ · เร็วสุด ' + esc(thaiDate_(Q.upcountryEarliest)) + ' · คลังจะยืนยันวันส่งจริง)</span></label><input type="date" id="ud" min="' + Q.upcountryEarliest + '" value="' + (pick && pick.date ? pick.date : '') + '">' +
     '<label>หมายเหตุ <span class="opt">(ถ้ามี)</span></label><textarea name="note">' + keep('note') + '</textarea>' +
     '<button type="button" class="btn block" id="send">ส่งขออนุมัติ</button>';
   var gp = f.elements.grossProfit;
@@ -354,7 +382,7 @@ function submitUpcountry(f, fee, low) {
   if (!low && Number(fc || fee) < fee && !e.feeReason.value.trim()) return toast('กรุณาใส่เหตุผลที่เก็บค่าส่งต่ำกว่านโยบาย', true);
   var btn = $('#send'); btn.disabled = true; btn.textContent = 'กำลังส่ง…';
   call('submitRequest', {
-    requester: me.name, branchCode: me.branchCode, customer: e.customer.value, mapsUrl: e.mapsUrl.value,
+    requester: me.name, branchCode: me.branchCode, area: areaOf(f), customer: e.customer.value, mapsUrl: e.mapsUrl.value,
     address: e.address.value, value: e.value.value, qty: e.qty.value, stock: stock, lowMargin: e.lowMargin.checked,
     date: pick.date, branchManager: e.branchManager.value, productType: e.productType.value, phone: e.phone.value, grossProfit: e.grossProfit.value,
     poNo: e.poNo.value, collectFee: collect, feeCharged: fc, feeReason: e.feeReason.value, trNo: e.trNo.value, note: e.note.value,
@@ -381,7 +409,7 @@ function submit(f, fee, low) {
   if (!low && e.feeCharged.value !== '' && Number(e.feeCharged.value) < fee && !e.feeReason.value.trim()) return toast('กรุณาใส่เหตุผลที่เก็บค่าส่งต่ำกว่านโยบาย', true);
   var btn = $('#send'); btn.disabled = true; btn.textContent = 'กำลังส่ง…';
   call('submitRequest', {
-    requester: me.name, branchCode: me.branchCode, customer: e.customer.value, mapsUrl: e.mapsUrl.value,
+    requester: me.name, branchCode: me.branchCode, area: areaOf(f), customer: e.customer.value, mapsUrl: e.mapsUrl.value,
     address: e.address.value, value: e.value.value, qty: e.qty.value, stock: stock, lowMargin: e.lowMargin.checked,
     urgent: !!pick.urgent, date: pick.date, plate: pick.plate || '', feeCharged: e.feeCharged.value,
     feeReason: e.feeReason.value, trNo: e.trNo.value, phone: e.phone.value, timeWindow: e.timeWindow.value, note: e.note.value,

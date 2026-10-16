@@ -157,3 +157,9 @@ test('ข้อมูลตั้งต้น: ทุกสาขาในตา
   for (const r of L.seedSchedule_()) for (const c of r.branches) assert.ok(codes.has(c), c);
   for (const s of L.seedSalesStaff_()) assert.ok(codes.has(s[1]), s.join());
 });
+
+test('วันทำการ: จันทร์–เสาร์ ไม่นับอาทิตย์และวันหยุด', () => {
+  assert.equal(L.addWorkDays_('2026-10-19', 3, {}), '2026-10-22');            // จ. → พฤ.
+  assert.equal(L.addWorkDays_('2026-10-22', 3, {}), '2026-10-26');            // พฤ. → จ. (ข้ามอาทิตย์)
+  assert.equal(L.addWorkDays_('2026-10-19', 5, { '2026-10-23': true }), '2026-10-26');
+});

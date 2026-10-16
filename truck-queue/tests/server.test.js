@@ -129,7 +129,7 @@ function ready() {
   return S;
 }
 
-const base = { requester: 'หน่อย', branchCode: '00005', customer: 'โรงเรียน ก', mapsUrl: 'https://maps.app.goo.gl/near',
+const base = { area: 'metro', requester: 'หน่อย', branchCode: '00005', customer: 'โรงเรียน ก', mapsUrl: 'https://maps.app.goo.gl/near',
   value: 5500, qty: '10 ลัง', stock: 'โกดัง' };
 const J = (x) => JSON.parse(JSON.stringify(x));
 
@@ -192,8 +192,8 @@ test('ค่าส่งต่ำกว่านโยบายต้องม�
   assert.equal(S.submitRequest({ ...far, feeCharged: 0, feeReason: 'ลูกค้าประจำ' }).status, 'รอยืนยัน');
 });
 
-const korat = { ...base, mapsUrl: 'https://maps.app.goo.gl/korat', value: 20000, qty: '550 ชิ้น', productType: 'เฟรมผ้าใบ',
-  phone: '081-000-0000', grossProfit: 4000, poNo: 'PO-1', date: '2026-10-23', branchManager: 'สมชาย ใจดี',
+const korat = { ...base, area: 'up', mapsUrl: 'https://maps.app.goo.gl/korat', value: 20000, qty: '550 ชิ้น', productType: 'เฟรมผ้าใบ',
+  phone: '081-000-0000', grossProfit: 4000, poNo: 'PO-1', date: '2026-10-26', branchManager: 'สมชาย ใจดี',
   poFiles: [{ name: 'po.jpg', mime: 'image/jpeg', data: Buffer.from('fake-jpeg').toString('base64') }] };
 
 test('ต่างจังหวัด: ใช้อัตรา 90 บาท และต้องกรอกข้อมูลตามใบแจ้ง', () => {
@@ -202,14 +202,14 @@ test('ต่างจังหวัด: ใช้อัตรา 90 บาท �
   assert.equal(q.metro, false);
   assert.equal(q.rounds.length, 0);
   assert.equal(q.feePolicy, S.policyFee_(q.distanceKm, 20000, null, 90));
-  assert.equal(q.upcountryEarliest, '2026-10-22');
+  assert.equal(q.upcountryEarliest, '2026-10-24');   // จ. 19 + 5 วันทำการ (จ.–ส.) = ส. 24
   assert.throws(() => S.submitRequest({ ...korat, branchManager: '' }), /ผู้จัดการสาขา/);
   assert.throws(() => S.submitRequest({ ...korat, branchManager: 'หน่อย' }), /ผู้จัดการสาขา/);   // พนักงานขาย ไม่ใช่ ผจก.สาขา
   assert.ok(J(S.getBootstrap()).sales.some(x => x.name === 'สมชาย ใจดี' && x.manager === true));
   assert.throws(() => S.submitRequest({ ...korat, productType: '' }), /ประเภทสินค้า/);
   assert.throws(() => S.submitRequest({ ...korat, poFiles: [] }), /แนบใบสั่งซื้อ/);   // ต่างจังหวัดต้องแนบไฟล์
   assert.throws(() => S.submitRequest({ ...korat, grossProfit: '' }), /กำไรขั้นต้น/);
-  assert.throws(() => S.submitRequest({ ...korat, date: '2026-10-21' }), /ต้องไม่ก่อน/);
+  assert.throws(() => S.submitRequest({ ...korat, date: '2026-10-23' }), /5 วันทำการ/);
   const r = S.submitRequest(korat);
   assert.equal(r.status, 'รออนุมัติ');
   const v = J(S.branchRequests('00005')).find(x => x.id === r.id);
@@ -266,15 +266,15 @@ test('ต่างจังหวัด: ใบแจ้งสำหรับพ
 
 test('ต่างจังหวัด: ไม่เลื่อนอัตโนมัติ และไม่กินที่รอบกรุงเทพฯ', () => {
   const S = ready();
-  const r = S.submitRequest({ ...korat, date: '2026-10-22' });
-  S.__setNow('2026-10-21T09:05:00Z');
+  const r = S.submitRequest({ ...korat, date: '2026-10-26' });
+  S.__setNow('2026-10-24T09:05:00Z');
   S.autoPostpone();
-  assert.equal(J(S.branchRequests('00005')).find(x => x.id === r.id).date, '2026-10-22');
+  assert.equal(J(S.branchRequests('00005')).find(x => x.id === r.id).date, '2026-10-26');
 });
 
 test('ยอดต่ำกว่า 3,000 นอกเส้นทาง: อนุมัติสองฝั่งพร้อมกันจนยืนยัน', () => {
   const S = ready();
-  const r = S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '', date: '2026-10-21', plate: 'ถศ 6598' });
+  const r = S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '', date: '2026-10-24', plate: 'บห 1782' });
   assert.equal(r.status, 'รออนุมัติ');
   // ใกล้สาขา (อยู่บนเส้นทาง) ไม่ต้องอนุมัติ
   assert.equal(S.submitRequest({ ...base, value: 1000, date: '2026-10-21', plate: 'ถศ 6598' }).status, 'รอยืนยัน');
@@ -283,7 +283,7 @@ test('ยอดต่ำกว่า 3,000 นอกเส้นทาง: อ�
   assert.throws(() => S.decide('zone', 'zonemgr', 'อนุชา ชัยนิวัติ (โจ้)', r.id, true, '', null), /ไม่อยู่ในเขต/);
   assert.equal(J(S.approvals('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)')).length, 1);
   S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
-  S.decide('wh', 'klangsk', 'ชาญวิทย์ สีสะอาด', r.id, true, '', { date: '2026-10-21', plate: 'ถศ 6598' }); // ฝั่งคลังไม่ต้องรอ CEO
+  S.decide('wh', 'klangsk', 'ชาญวิทย์ สีสะอาด', r.id, true, '', { date: '2026-10-24', plate: 'บห 1782' }); // ฝั่งคลังไม่ต้องรอ CEO
   assert.equal(S.decide('ceo', 'CEOPPP', 'CEO', r.id, true, '', null).status, 'รออนุมัติ');
   assert.equal(S.decide('coo', 'cooqqq', 'COO', r.id, true, '', null).status, 'ยืนยันแล้ว');
   const log = S.__sheets['ประวัติการแก้ไข']._rows.filter(x => x[1] === r.id).map(x => x[3]);
@@ -292,7 +292,7 @@ test('ยอดต่ำกว่า 3,000 นอกเส้นทาง: อ�
 
 test('ไม่อนุมัติขั้นใดขั้นหนึ่ง = จบ และต้องมีเหตุผล', () => {
   const S = ready();
-  const r = S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '', date: '2026-10-21', plate: 'ถศ 6598' });
+  const r = S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '', date: '2026-10-24', plate: 'บห 1782' });
   assert.throws(() => S.decide('wh', 'klangsk', 'จรินทร มีเจริญ', r.id, false, '', null), /เหตุผล/);
   const out = S.decide('wh', 'klangsk', 'จรินทร มีเจริญ', r.id, false, 'รถเต็ม', null);
   assert.equal(out.status, 'ไม่อนุมัติ');
@@ -321,12 +321,12 @@ test('คลัง: ยืนยัน ย้ายวัน และปิด�
 
 test('เลื่อนอัตโนมัติเมื่ออนุมัติไม่ครบภายใน 16:00 วันก่อนส่ง', () => {
   const S = ready();
-  const r = S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '', date: '2026-10-21', plate: 'ถศ 6598' });
-  S.__setNow('2026-10-20T09:05:00Z'); // อังคาร 16:05 น.
+  const r = S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '', date: '2026-10-24', plate: 'บห 1782' });
+  S.__setNow('2026-10-23T09:05:00Z'); // ศุกร์ 16:05 น.
   S.autoPostpone();
   const moved = J(S.branchRequests('00005')).find(x => x.id === r.id);
-  assert.equal(moved.date, '2026-10-24');
-  assert.equal(moved.plate, 'บห 1782');
+  assert.equal(moved.date, '2026-10-28');
+  assert.equal(moved.plate, 'ถศ 6598');
   assert.match(moved.reason, /เลื่อนอัตโนมัติ/);
 });
 
@@ -411,4 +411,23 @@ test('ต่างจังหวัด: คลังกรอกค่าขน
   const q = J(S.quote({ branchCode: '00005', mapsUrl: base.mapsUrl, value: base.value }));
   const m = J(S.submitRequest({ ...base, date: q.rounds[0].date, plate: q.rounds[0].plate }));
   assert.throws(() => S.whSaveCost('klangsk', 'x', m.id, { cost }), /เฉพาะงานต่างจังหวัด/);
+});
+
+test('กล่อง กรุงเทพฯ/ต่างจังหวัด ต้องตรงกับที่อยู่ลูกค้า และงานต้องอนุมัติขอล่วงหน้า 3 วันทำการ', () => {
+  const S = ready();
+  assert.throws(() => S.submitRequest({ ...base, area: '', date: '2026-10-21', plate: 'ถศ 6598' }), /กรุณาเลือกว่าส่งลูกค้า/);
+  assert.throws(() => S.submitRequest({ ...base, area: 'up', date: '2026-10-21', plate: 'ถศ 6598' }), /กรุงเทพฯ และปริมณฑล แต่เลือกไว้เป็นต่างจังหวัด/);
+  assert.throws(() => S.submitRequest({ ...korat, area: 'metro' }), /นครราชสีมา ซึ่งเป็นต่างจังหวัด/);
+  // ยอดต่ำนอกเส้นทาง: รอบพุธ 21 (2 วันทำการ) ใกล้เกินไป · รอบเสาร์ 24 ได้
+  const q = J(S.quote({ branchCode: '00005', mapsUrl: 'https://maps.app.goo.gl/far', value: 2000 }));
+  assert.equal(q.approvalEarliest, '2026-10-22');
+  assert.deepEqual(q.rounds.filter(r => r.date <= '2026-10-24').map(r => [r.date, r.tooSoon]), [['2026-10-21', true], ['2026-10-24', false]]);
+  const low = { ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '' };
+  assert.throws(() => S.submitRequest({ ...low, date: '2026-10-21', plate: 'ถศ 6598' }), /ล่วงหน้าอย่างน้อย 3 วันทำการ/);
+  assert.throws(() => S.submitRequest({ ...low, urgent: true, date: '2026-10-21' }), /3 วันทำการ/);
+  // งานปกติ (ไม่ต้องอนุมัติ) ยังจองรอบพุธได้
+  assert.equal(S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 5500, date: '2026-10-21', plate: 'ถศ 6598' }).status, 'รอยืนยัน');
+  // วันหยุดไม่นับเป็นวันทำการ
+  S.__sheets['วันหยุด']._rows.push(['2026-10-20', 'ทดสอบ']);
+  assert.equal(J(S.quote({ branchCode: '00005', mapsUrl: 'https://maps.app.goo.gl/far', value: 2000 })).approvalEarliest, '2026-10-23');
 });
