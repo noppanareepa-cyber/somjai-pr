@@ -43,7 +43,7 @@ function setup() {
     if (haveKeys.indexOf(d[0]) === -1) append_(SHEET.SETTING, { key: d[0], value: d[1], note: d[2] });
   });
   seedIfEmpty_(SHEET.TIER, DEFAULT_TIERS.map(function (t) { return { minValue: t[0], freeKm: t[1] }; }));
-  seedIfEmpty_(SHEET.BRANCH, seedBranches_().map(function (b) {
+  seedIfEmpty_(SHEET.BRANCH, seedBranches_().sort(function (a, b) { return a[0] < b[0] ? -1 : 1; }).map(function (b) {
     return { code: b[0], name: b[1], zone: b[2], zoneManager: b[3], mapsUrl: b[4], status: b[5] };
   }));
   seedIfEmpty_(SHEET.TRUCK, seedTrucks_().map(function (t) {
@@ -892,7 +892,8 @@ function getBootstrap() {
     settings: { cutoffHour: s.cutoffHour, ratePer10Km: s.ratePer10Km, minValue: s.minValue, tiers: tiers_(),
       upcountryRatePer10Km: s.upcountryRatePer10Km, kmPerLiter: s.kmPerLiter, fuelPrice: s.fuelPrice,
       depreciationPerKm: s.depreciationPerKm },
-    branches: branches.filter(function (b) { return b.status === 'เปิด'; }).map(function (b) {
+    branches: branches.filter(function (b) { return b.status === 'เปิด'; })
+      .sort(function (a, b) { return a.code < b.code ? -1 : a.code > b.code ? 1 : 0; }).map(function (b) {
       return { code: b.code, name: b.name, zone: b.zone, zoneManager: b.zoneManager, bookable: bookableBranch_(b, s), hasCoords: !!(b.lat && b.lng) };
     }),
     sales: staff.filter(function (p) { return (p.role === 'ขาย' || p.role === ROLE_BM) && p.status !== 'ปิด'; })

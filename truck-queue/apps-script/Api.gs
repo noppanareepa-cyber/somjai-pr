@@ -36,7 +36,8 @@ function getBootstrap() {
     settings: { cutoffHour: s.cutoffHour, ratePer10Km: s.ratePer10Km, minValue: s.minValue, tiers: tiers_(),
       upcountryRatePer10Km: s.upcountryRatePer10Km, kmPerLiter: s.kmPerLiter, fuelPrice: s.fuelPrice,
       depreciationPerKm: s.depreciationPerKm },
-    branches: branches.filter(function (b) { return b.status === 'เปิด'; }).map(function (b) {
+    branches: branches.filter(function (b) { return b.status === 'เปิด'; })
+      .sort(function (a, b) { return a.code < b.code ? -1 : a.code > b.code ? 1 : 0; }).map(function (b) {
       return { code: b.code, name: b.name, zone: b.zone, zoneManager: b.zoneManager, bookable: bookableBranch_(b, s), hasCoords: !!(b.lat && b.lng) };
     }),
     sales: staff.filter(function (p) { return (p.role === 'ขาย' || p.role === ROLE_BM) && p.status !== 'ปิด'; })

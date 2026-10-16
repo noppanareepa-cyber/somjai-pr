@@ -131,6 +131,9 @@ test('setup สร้างชีต ข้อมูลตั้งต้น แ
   assert.equal(b.branches.find(x => x.code === '00005').bookable, true);
   assert.equal(b.branches.find(x => x.code === '00015').bookable, false); // ช่วงทดลองเปิดเฉพาะสาย4
   assert.ok(b.sales.some(s => s.name === 'หน่อย' && s.branchCode === '00005'));
+  const codes = b.branches.map(x => x.code);
+  assert.deepEqual(codes, [...codes].sort());   // เรียงตามรหัสสาขา
+  assert.equal(codes[0], '00000');
 });
 
 test('ชีตตัดเลข 0 หน้ารหัสสาขา (00005 → 5) ยังเปิดใช้ได้', () => {
