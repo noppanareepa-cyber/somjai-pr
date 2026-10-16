@@ -207,7 +207,7 @@ test('ต่างจังหวัด: ใช้อัตรา 90 บาท �
   assert.throws(() => S.submitRequest({ ...korat, branchManager: 'หน่อย' }), /ผู้จัดการสาขา/);   // พนักงานขาย ไม่ใช่ ผจก.สาขา
   assert.ok(J(S.getBootstrap()).sales.some(x => x.name === 'สมชาย ใจดี' && x.manager === true));
   assert.throws(() => S.submitRequest({ ...korat, productType: '' }), /ประเภทสินค้า/);
-  assert.throws(() => S.submitRequest({ ...korat, poFiles: [] }), /แนบรูปใบสั่งซื้อ/);   // ต่างจังหวัดต้องแนบรูป
+  assert.throws(() => S.submitRequest({ ...korat, poFiles: [] }), /แนบใบสั่งซื้อ/);   // ต่างจังหวัดต้องแนบไฟล์
   assert.throws(() => S.submitRequest({ ...korat, grossProfit: '' }), /กำไรขั้นต้น/);
   assert.throws(() => S.submitRequest({ ...korat, date: '2026-10-21' }), /ต้องไม่ก่อน/);
   const r = S.submitRequest(korat);
@@ -367,7 +367,13 @@ test('แนบรูปใบสั่งซื้อ: เก็บใน Drive
   assert.throws(() => S.attachPo(r.id, 'หน่อย', '00005', [jpg(6)]), /ไม่เกิน 5/);
   assert.throws(() => S.attachPo(r.id, 'หน่อย', '00019', [jpg(6)]), /สาขาตัวเอง/);
   // ชนิดไฟล์ต้องเป็นรูป
-  assert.throws(() => S.submitRequest({ ...base, date: r0.date, plate: r0.plate, poFiles: [{ name: 'x.pdf', mime: 'application/pdf', data: 'AAAA' }] }), /เฉพาะไฟล์รูป/);
+  assert.throws(() => S.submitRequest({ ...base, date: r0.date, plate: r0.plate, poFiles: [{ name: 'x.doc', mime: 'application/msword', data: 'AAAA' }] }), /JPG, PNG หรือ PDF/);
+  // PDF แนบได้
+  const pdf = { name: 'po.pdf', mime: 'application/pdf', data: Buffer.from('%PDF-1.4 fake').toString('base64') };
+  const r3 = J(S.submitRequest({ ...base, date: r0.date, plate: r0.plate, poFiles: [pdf] }));
+  const im3 = J(S.poImages_(S.findRequest_(r3.id)));
+  assert.equal(im3[0].pdf, true);
+  assert.match(im3[0].name, /-PO-1\.pdf$/);
   // ไม่แนบรูปก็ส่งได้
   const r2 = J(S.submitRequest({ ...base, date: r0.date, plate: r0.plate }));
   assert.equal(J(S.branchRequests('00005')).find(x => x.id === r2.id).poUrl, '');

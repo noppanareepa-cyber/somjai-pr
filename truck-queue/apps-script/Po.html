@@ -12,6 +12,8 @@
     main { max-width: 900px; margin: 0 auto; padding: 12px 16px 24px; }
     figure { margin: 0 0 14px; background: #fff; border-radius: 10px; padding: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
     figure img { display: block; width: 100%; height: auto; border-radius: 6px; }
+    .pdf img { display: block; width: 100%; height: auto; border: 1px solid #ddd; margin-bottom: 6px; }
+    .wait { color: #555; padding: 16px; }
     figcaption { font-size: 13px; color: #555; margin-top: 4px; display: flex; justify-content: space-between; gap: 8px; }
     figcaption a { color: #1f7a3a; }
     .miss { color: #a3261d; padding: 16px; }
@@ -23,17 +25,31 @@
 <body>
   <header id="h"></header>
   <main id="m"></main>
+  <?!= include_('PdfView') ?>
   <script>
     var D = <?!= data ?>;
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
-    document.getElementById('h').innerHTML = '<b>รูปใบสั่งซื้อ · ' + esc(D.id) + '</b><div>' + esc(D.branchName) + ' · ' + esc(D.customer) +
+    var N = D.images.length;
+    document.getElementById('h').innerHTML = '<b>ใบสั่งซื้อ · ' + esc(D.id) + '</b><div>' + esc(D.branchName) + ' · ' + esc(D.customer) +
       (D.poNo ? ' · เลขที่ ' + esc(D.poNo) : '') + '</div>';
-    document.getElementById('m').innerHTML = !D.images.length ? '<p class="miss">คำขอนี้ยังไม่มีรูปใบสั่งซื้อ</p>' :
+    document.getElementById('m').innerHTML = !N ? '<p class="miss">คำขอนี้ยังไม่ได้แนบใบสั่งซื้อ</p>' :
       '<div class="bar"><button onclick="print()">พิมพ์</button></div>' + D.images.map(function (im, i) {
-        if (im.missing) return '<figure><div class="miss">ไม่พบไฟล์ ' + esc(im.name) + ' (อาจถูกลบออกจาก Drive)</div></figure>';
-        return '<figure><img src="' + im.src + '" alt="ใบสั่งซื้อ รูปที่ ' + (i + 1) + '"><figcaption><span>รูปที่ ' + (i + 1) + ' / ' + D.images.length + '</span>' +
-          '<a href="' + im.src + '" download="' + esc(im.name) + '">บันทึกรูป</a></figcaption></figure>';
+        var cap = '<figcaption><span>ไฟล์ที่ ' + (i + 1) + ' / ' + N + (im.pdf ? ' · PDF' : '') + '</span>' +
+          (im.missing ? '' : '<a href="' + im.src + '" download="' + esc(im.name) + '">บันทึกไฟล์</a>') + '</figcaption>';
+        if (im.missing) return '<figure><div class="miss">ไม่พบไฟล์ ' + esc(im.name) + ' (อาจถูกลบออกจาก Drive)</div>' + cap + '</figure>';
+        if (im.pdf) return '<figure><div class="pdf" id="pdf' + i + '"><p class="wait">กำลังเปิด PDF…</p></div>' + cap + '</figure>';
+        return '<figure><img src="' + im.src + '" alt="ใบสั่งซื้อ ไฟล์ที่ ' + (i + 1) + '">' + cap + '</figure>';
       }).join('');
+    D.images.forEach(function (im, i) {
+      if (!im.pdf || im.missing) return;
+      var box = document.getElementById('pdf' + i);
+      renderPdf(im.src, function (img, n, total) {
+        if (n === 1) box.innerHTML = '';
+        img.alt = 'หน้า ' + n + '/' + total; box.appendChild(img);
+      }).catch(function (e) {
+        box.innerHTML = '<p class="miss">เปิด PDF ในหน้านี้ไม่ได้ (' + esc(e.message) + ') · กด "บันทึกไฟล์" แล้วเปิดในเครื่อง</p>';
+      });
+    });
   </script>
 </body>
 </html>

@@ -1,0 +1,33 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+  /**
+   * แสดงไฟล์ PDF (data URL) เป็นภาพทีละหน้า — ใช้ได้ทั้งมือถือและตอนพิมพ์
+   * (ตัวอ่าน PDF ในเบราว์เซอร์เปิด data URL ในหน้าเว็บแอปไม่ได้ จึงวาดเป็นภาพเอง)
+   * onPage(img, หน้าที่, จำนวนหน้า) · คืน Promise
+   */
+  function renderPdf(src, onPage) {
+    if (!window.pdfjsLib) return Promise.reject(new Error('โหลดตัวอ่าน PDF ไม่สำเร็จ'));
+    var raw = atob(src.slice(src.indexOf(',') + 1)), bytes = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return pdfjsLib.getDocument({ data: bytes }).promise.then(function (pdf) {
+      var chain = Promise.resolve();
+      for (var n = 1; n <= pdf.numPages; n++) {
+        chain = chain.then(renderPage.bind(null, pdf, n));
+      }
+      return chain;
+    });
+    function renderPage(pdf, n) {
+      return pdf.getPage(n).then(function (page) {
+        var vp = page.getViewport({ scale: 2 });
+        var c = document.createElement('canvas');
+        c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        return page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise.then(function () {
+          var img = new Image();
+          img.src = c.toDataURL('image/jpeg', 0.85);
+          onPage(img, n, pdf.numPages);
+        });
+      });
+    }
+  }
+</script>

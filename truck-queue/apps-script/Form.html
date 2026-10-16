@@ -43,6 +43,7 @@
   <div class="bar"><button onclick="print()">พิมพ์ / บันทึกเป็น PDF</button></div>
   <div class="page" id="p"></div>
   <div id="po"></div>
+  <?!= include_('PdfView') ?>
   <script>
     var D = <?!= data ?>;
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
@@ -71,7 +72,7 @@
 
       '<table><tr><th class="sec" colspan="4">ข้อมูลจากฝ่ายขาย (ฝ่ายขายกรอกข้อมูล)</th></tr>' +
       row('ชื่อ - นามสกุล (ลูกค้า)', esc(D.customer), 'เบอร์ติดต่อ', esc(D.phone)) +
-      row('เลขที่ใบสั่งซื้อ', esc(D.poNo || '-') + (D.poImages.length ? '<div class="muted">แนบรูปใบสั่งซื้อ ' + D.poImages.length + ' รูป (หน้าถัดไป)</div>' : ''), 'ยอดขายรวม', '<span class="num">' + m(D.value) + '</span> บาท') +
+      row('เลขที่ใบสั่งซื้อ', esc(D.poNo || '-') + (D.poImages.length ? '<div class="muted">แนบใบสั่งซื้อ ' + D.poImages.length + ' ไฟล์ (หน้าถัดไป)</div>' : ''), 'ยอดขายรวม', '<span class="num">' + m(D.value) + '</span> บาท') +
       row('กำไรขั้นต้น (บาท)', '<span class="num">' + m(D.grossProfit) + '</span> บาท', 'กำไรขั้นต้น (%)', esc(D.grossProfitPct === '' ? '-' : D.grossProfitPct + '%')) +
       row('ประเภทสินค้า', esc(D.productType), 'จำนวนสินค้า', esc(D.qty)) +
       row('ระยะทางขาไปส่งให้ลูกค้า', '<span class="num">' + m(D.distanceKm) + '</span> กม. (จากสาขา)', 'การเก็บค่าส่งลูกค้า',
@@ -103,11 +104,19 @@
       '<td>' + signer(D.appr.coo, 'ประธานเจ้าหน้าที่สายงานปฏิบัติการ', D.cooName) + '</td></tr></table>' +
 
       '<div class="foot"><span>เอกสารนี้พิมพ์จากระบบขอคิวรถคลังสินค้า · การอนุมัติบันทึกในระบบพร้อมชื่อและเวลา</span><span>พิมพ์เมื่อ ' + esc(D.printedAt) + '</span></div>';
-    // รูปใบสั่งซื้อที่แนบ — หน้าละ 1 รูป ต่อท้ายใบแจ้ง
-    document.getElementById('po').innerHTML = D.poImages.map(function (im, i) {
-      return '<div class="page po"><h2>ใบสั่งซื้อที่แนบ · ' + esc(D.id) + (D.poNo ? ' · เลขที่ ' + esc(D.poNo) : '') + ' · รูปที่ ' + (i + 1) + '/' + D.poImages.length + '</h2>' +
-        (im.missing ? '<p class="muted">ไม่พบไฟล์ ' + esc(im.name) + '</p>' : '<img src="' + im.src + '" alt="ใบสั่งซื้อ">') + '</div>';
-    }).join('');
+    // ใบสั่งซื้อที่แนบ — รูปละ 1 หน้า · PDF วาดทีละหน้า ต่อท้ายใบแจ้ง
+    var poBox = document.getElementById('po');
+    D.poImages.forEach(function (im, i) {
+      var head = '<h2>ใบสั่งซื้อที่แนบ · ' + esc(D.id) + (D.poNo ? ' · เลขที่ ' + esc(D.poNo) : '') + ' · ไฟล์ที่ ' + (i + 1) + '/' + D.poImages.length;
+      var page = function (html) { var d = document.createElement('div'); d.className = 'page po'; d.innerHTML = html; poBox.appendChild(d); return d; };
+      if (im.missing) return page(head + '</h2><p class="muted">ไม่พบไฟล์ ' + esc(im.name) + '</p>');
+      if (!im.pdf) return page(head + '</h2><img src="' + im.src + '" alt="ใบสั่งซื้อ">');
+      var slot = page(head + '</h2><p class="muted">กำลังเปิด PDF…</p>');
+      renderPdf(im.src, function (img, n, total) {
+        var d = n === 1 ? slot : page('');
+        d.innerHTML = head + ' · หน้า ' + n + '/' + total + '</h2>'; d.appendChild(img);
+      }).catch(function (e) { slot.innerHTML = head + '</h2><p class="muted">เปิด PDF ไม่ได้ (' + esc(e.message) + ') — ดูไฟล์จากปุ่มใบสั่งซื้อในระบบ</p>'; });
+    });
   </script>
 </body>
 </html>

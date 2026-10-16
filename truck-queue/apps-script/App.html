@@ -6,7 +6,7 @@ var staff = load('tq_staff'); // {role, pin, actor}
 var view = 'request';
 var Q = null;            // ผลคำนวณล่าสุดจาก quote()
 var pick = null;         // รอบที่เลือก {date, plate}
-var PO = [];             // รูปใบสั่งซื้อที่เลือกไว้ (ย่อแล้ว) [{name, mime, data, url}]
+var PO = [];             // ไฟล์ใบสั่งซื้อที่เลือกไว้ (รูปย่อแล้ว / PDF) [{name, mime, data, url}]
 var PO_MAX = 5;
 
 function load(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
@@ -84,22 +84,34 @@ function shrink(file) {
     rd.readAsDataURL(file);
   });
 }
+/** PDF ส่งทั้งไฟล์ (ไม่เกิน 4 MB) */
+function readPdf(file) {
+  return new Promise(function (ok, bad) {
+    if (file.size > 4 * 1024 * 1024) return bad(new Error('ไฟล์ ' + file.name + ' ใหญ่เกิน 4 MB'));
+    var rd = new FileReader();
+    rd.onerror = function () { bad(new Error('อ่านไฟล์ ' + file.name + ' ไม่ได้')); };
+    rd.onload = function () { ok({ name: file.name, mime: 'application/pdf', data: String(rd.result).split(',')[1], pdf: true }); };
+    rd.readAsDataURL(file);
+  });
+}
+function isPdf(file) { return file.type === 'application/pdf' || /\.pdf$/i.test(file.name); }
 function poPayload(list) { return list.map(function (x) { return { name: x.name, mime: x.mime, data: x.data }; }); }
 
-/** ช่องแนบรูปใบสั่งซื้อ: ภาพย่อ + ปุ่มลบ + ปุ่มถ่าย/เลือกรูป · list ถูกแก้ในที่ */
+/** ช่องแนบใบสั่งซื้อ (รูป JPG/PNG หรือ PDF): ภาพย่อ + ปุ่มลบ + ปุ่มถ่าย/เลือกไฟล์ · list ถูกแก้ในที่ */
 function poPicker(box, list, max) {
   box.innerHTML = '<div class="thumbs">' + list.map(function (x, i) {
-    return '<div class="thumb"><img src="' + x.url + '" alt=""><button type="button" data-rm="' + i + '" aria-label="ลบรูป">✕</button></div>';
-  }).join('') + (list.length < max ? '<label class="thumb add"><input type="file" accept="image/*" multiple hidden><span>＋<br>ถ่าย/เลือกรูป</span></label>' : '') + '</div>' +
-    '<div class="small muted">' + (list.length ? list.length + ' รูป · ' : '') + 'ไม่เกิน ' + max + ' รูป · ถ่ายให้เห็นเลขที่ ยอดเงิน และรายการชัดเจน</div>';
+    return '<div class="thumb">' + (x.pdf ? '<div class="pdfx"><b>PDF</b><span>' + esc(x.name) + '</span></div>' : '<img src="' + x.url + '" alt="">') +
+      '<button type="button" data-rm="' + i + '" aria-label="ลบไฟล์">✕</button></div>';
+  }).join('') + (list.length < max ? '<label class="thumb add"><input type="file" accept="image/*,application/pdf,.pdf" multiple hidden><span>＋<br>ถ่ายรูป/<br>เลือกไฟล์</span></label>' : '') + '</div>' +
+    '<div class="small muted">' + (list.length ? list.length + ' ไฟล์ · ' : '') + 'JPG, PNG หรือ PDF ไม่เกิน ' + max + ' ไฟล์ · ให้เห็นเลขที่ ยอดเงิน และรายการชัดเจน</div>';
   box.querySelectorAll('[data-rm]').forEach(function (b) { b.onclick = function () { list.splice(+b.dataset.rm, 1); poPicker(box, list, max); }; });
   var inp = $('input[type=file]', box);
   if (inp) inp.onchange = function () {
     var files = Array.prototype.slice.call(inp.files, 0, max - list.length);
-    if (inp.files.length > files.length) toast('แนบได้ไม่เกิน ' + max + ' รูป', true);
-    box.querySelector('.add span').textContent = 'กำลังย่อรูป…';
+    if (inp.files.length > files.length) toast('แนบได้ไม่เกิน ' + max + ' ไฟล์', true);
+    box.querySelector('.add span').textContent = 'กำลังเตรียมไฟล์…';
     files.reduce(function (p, file) {
-      return p.then(function () { return shrink(file).then(function (x) { list.push(x); }); });
+      return p.then(function () { return (isPdf(file) ? readPdf(file) : shrink(file)).then(function (x) { list.push(x); }); });
     }, Promise.resolve()).catch(fail).then(function () { poPicker(box, list, max); });
   };
 }
@@ -190,7 +202,7 @@ function renderForm() {
     '<label>ของอยู่ที่</label><div class="seg">' + B.stockOptions.map(function (o) {
       return '<label><input type="radio" name="stock" value="' + esc(o) + '"><span>' + esc(o) + '</span></label>'; }).join('') + '</div>' +
     '<label class="check"><input type="checkbox" name="lowMargin"> สินค้ากลุ่มกระดาษ / Low Margin (คลังพิจารณาค่าส่งเป็นรายกรณี)</label>' +
-    '<label>รูปใบสั่งซื้อ <span class="opt" id="poReq">(ถ้ามี · ส่งต่างจังหวัดต้องแนบ)</span></label><div id="poBox"></div>' +
+    '<label>ใบสั่งซื้อ (รูป/PDF) <span class="opt" id="poReq">(ถ้ามี · ส่งต่างจังหวัดต้องแนบ)</span></label><div id="poBox"></div>' +
     '<button type="button" class="btn ghost block" id="qbtn">ตรวจระยะทาง ค่าส่ง และวันส่ง</button>' +
     '<div id="qres"></div></form>';
   var f = $('#f');
@@ -216,7 +228,7 @@ function renderQuote(f) {
   var fee = policyFee_(Q.distanceKm, value, B.settings.tiers, B.settings.ratePer10Km);
   var free = freeKm_(value, B.settings.tiers);
   var out = '';
-  $('#poReq').textContent = Q.metro ? '(ถ้ามี)' : '(ต่างจังหวัด — ต้องแนบอย่างน้อย 1 รูป)';
+  $('#poReq').textContent = Q.metro ? '(ถ้ามี)' : '(ต่างจังหวัด — ต้องแนบอย่างน้อย 1 ไฟล์)';
   $('#poReq').className = Q.metro ? 'opt' : 'req';
   if (!Q.metro) return renderUpcountry(f, value, low);
   out += '<div class="note ' + (low ? 'info' : fee ? 'warn' : 'ok') + '"><b>' + Q.distanceKm + ' กม.</b> จากสาขา · ' + esc(Q.province) +
@@ -336,7 +348,7 @@ function submitUpcountry(f, fee, low) {
   if (!e.productType.value.trim()) return toast('กรุณาใส่ประเภทสินค้า', true);
   if (!e.phone.value.trim()) return toast('กรุณาใส่เบอร์ติดต่อลูกค้า', true);
   if (e.grossProfit.value === '') return toast('กรุณาใส่กำไรขั้นต้น', true);
-  if (!PO.length) { $('#poBox').scrollIntoView({ block: 'center' }); return toast('ส่งต่างจังหวัดต้องแนบรูปใบสั่งซื้ออย่างน้อย 1 รูป', true); }
+  if (!PO.length) { $('#poBox').scrollIntoView({ block: 'center' }); return toast('ส่งต่างจังหวัดต้องแนบใบสั่งซื้ออย่างน้อย 1 ไฟล์ (รูปหรือ PDF)', true); }
   if (!pick || !pick.date) return toast('กรุณาเลือกวันที่ลูกค้าต้องการ', true);
   var fc = collect ? e.feeCharged.value : '0';
   if (!low && Number(fc || fee) < fee && !e.feeReason.value.trim()) return toast('กรุณาใส่เหตุผลที่เก็บค่าส่งต่ำกว่านโยบาย', true);
@@ -414,7 +426,7 @@ function renderMine() {
         (r.reason ? '<div class="note warn small">' + esc(r.reason) + '</div>' : '') +
         '<div class="actions">' + (canCancel ? '<button class="btn bad small" data-c="' + esc(r.id) + '">ยกเลิกคำขอ</button>' : '') +
         (r.formUrl ? '<a class="btn small ghost" target="_blank" href="' + esc(r.formUrl) + '">ใบแจ้ง (พิมพ์)</a>' : '') +
-        (r.poUrl ? '<a class="btn small ghost" target="_blank" href="' + esc(r.poUrl) + '">ใบสั่งซื้อ (' + r.poCount + ' รูป)</a>' : '') +
+        (r.poUrl ? '<a class="btn small ghost" target="_blank" href="' + esc(r.poUrl) + '">ใบสั่งซื้อ (' + r.poCount + ' ไฟล์)</a>' : '') +
         (canAttach ? '<button class="btn small ghost" data-po="' + esc(r.id) + '" data-n="' + r.poCount + '">＋ แนบใบสั่งซื้อ</button>' : '') + '</div></div>';
     }).join('');
     pane.querySelectorAll('[data-c]').forEach(function (b) {
@@ -460,20 +472,20 @@ function renderStaff() {
   ({ board: renderBoard, approve: renderApprove, sheets: renderSheets, names: renderNames })[view]();
 }
 
-/** แนบรูปใบสั่งซื้อเพิ่มให้คำขอที่ส่งไปแล้ว */
+/** แนบใบสั่งซื้อเพิ่มให้คำขอที่ส่งไปแล้ว */
 function attachForm(id, have) {
   var list = [], m = $('#modal');
   m.innerHTML = '<div class="sheet"><h2>แนบใบสั่งซื้อ · ' + esc(id) + '</h2><div id="poAdd"></div>' +
-    '<div class="row" style="margin-top:16px"><button type="button" class="btn ghost" data-x>ปิด</button><button type="button" class="btn" id="poSave">บันทึกรูป</button></div></div>';
+    '<div class="row" style="margin-top:16px"><button type="button" class="btn ghost" data-x>ปิด</button><button type="button" class="btn" id="poSave">บันทึกไฟล์</button></div></div>';
   m.hidden = false;
   poPicker($('#poAdd'), list, PO_MAX - have);
   $('[data-x]', m).onclick = function () { m.hidden = true; };
   $('#poSave').onclick = function () {
-    if (!list.length) return toast('กรุณาถ่ายหรือเลือกรูปใบสั่งซื้อ', true);
+    if (!list.length) return toast('กรุณาถ่ายรูปหรือเลือกไฟล์ใบสั่งซื้อ', true);
     var btn = this; btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
     call('attachPo', id, me.name, me.branchCode, poPayload(list)).then(function () {
-      m.hidden = true; toast('แนบรูปแล้ว'); renderMine();
-    }).catch(function (e) { fail(e); btn.disabled = false; btn.textContent = 'บันทึกรูป'; });
+      m.hidden = true; toast('แนบไฟล์แล้ว'); renderMine();
+    }).catch(function (e) { fail(e); btn.disabled = false; btn.textContent = 'บันทึกไฟล์'; });
   };
 }
 
@@ -502,7 +514,7 @@ function detailKv(r) {
   return '<dl class="kv">' + rows.filter(function (x) { return x[1]; }).map(function (x) {
     return '<dt>' + x[0] + '</dt><dd>' + esc(x[1]) + '</dd>'; }).join('') +
     (r.mapsUrl ? '<dt>แผนที่</dt><dd><a target="_blank" href="' + esc(r.mapsUrl) + '">เปิดลิงก์</a></dd>' : '') +
-    '<dt>ใบสั่งซื้อ</dt><dd>' + (r.poUrl ? '<a target="_blank" href="' + esc(r.poUrl) + '">ดูรูป ' + r.poCount + ' รูป</a>' : '<span class="muted">ไม่ได้แนบรูป</span>') + '</dd></dl>';
+    '<dt>ใบสั่งซื้อ</dt><dd>' + (r.poUrl ? '<a target="_blank" href="' + esc(r.poUrl) + '">ดู ' + r.poCount + ' ไฟล์</a>' : '<span class="muted">ไม่ได้แนบ</span>') + '</dd></dl>';
 }
 
 var boardFrom = null;

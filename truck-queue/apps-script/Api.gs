@@ -180,7 +180,7 @@ function submitUpcountry_(f, q, s, po) {
   if (!productType) throw new Error('กรุณาใส่ประเภทสินค้า');
   if (!phone) throw new Error('กรุณาใส่เบอร์ติดต่อลูกค้า');
   if (!(gp >= 0)) throw new Error('กรุณาใส่กำไรขั้นต้น (บาท)');
-  if (!po || !po.length) throw new Error('ส่งต่างจังหวัดต้องแนบรูปใบสั่งซื้ออย่างน้อย 1 รูป');
+  if (!po || !po.length) throw new Error('ส่งต่างจังหวัดต้องแนบใบสั่งซื้ออย่างน้อย 1 ไฟล์ (รูปหรือ PDF)');
   var date = clean_(f.date, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < q.upcountryEarliest) {
     throw new Error('วันส่งต่างจังหวัดต้องไม่ก่อน ' + thaiDate_(q.upcountryEarliest));
