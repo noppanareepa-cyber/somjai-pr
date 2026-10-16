@@ -108,15 +108,18 @@ function renderWho() {
   wb.onchange = function () {
     var names = B.sales.filter(function (s) { return s.branchCode === wb.value; });
     wn.disabled = !wb.value;
-    wn.innerHTML = '<option value="">— เลือกชื่อ —</option>' + names.map(function (s) { return '<option>' + esc(s.name) + '</option>'; }).join('');
+    wn.innerHTML = '<option value="">— เลือกชื่อ —</option>' + names.map(function (s) {
+      return '<option value="' + esc(s.name) + '">' + esc(s.name) + (s.manager ? ' (ผจก.สาขา)' : '') + '</option>'; }).join('');
     $('#wadd').hidden = !wb.value; $('#wok').disabled = true;
   };
   wn.onchange = function () { $('#wok').disabled = !wn.value; };
   $('#wadd').onclick = function () {
-    ask('เพิ่มชื่อของฉัน', [{ name: 'name', label: 'ชื่อเล่น', required: true },
+    ask('เพิ่มชื่อของฉัน', [{ name: 'role', label: 'ตำแหน่ง', type: 'select', required: true,
+        options: [{ value: 'ขาย', label: 'พนักงานขาย' }, { value: 'ผจก.สาขา', label: 'ผู้จัดการสาขา' }] },
+      { name: 'name', label: 'ชื่อ (ผู้จัดการสาขาใส่ชื่อ-นามสกุล)', required: true },
       { type: 'note', value: 'สาขา: ' + branchName(wb.value) + ' · คลังจะตรวจชื่อใหม่อีกครั้ง' }], 'เพิ่มชื่อ').then(function (v) {
       if (!v) return;
-      call('addMyName', v.name, wb.value).then(function (p) {
+      call('addMyName', v.name, wb.value, v.role).then(function (p) {
         B.sales.push(p); me = p; save('tq_me', me); render();
       }).catch(fail);
     });
@@ -221,7 +224,7 @@ function renderUpcountry(f, value, low) {
     '<div class="note ' + (low ? 'info' : fee ? 'warn' : 'ok') + '">' + (low ? 'สินค้ากลุ่มกระดาษ/Low Margin — พิจารณาค่าส่งเป็นรายกรณี'
       : 'ยอด ' + money(value) + ' บาท ส่งฟรี ' + free + ' กม. · <b>ค่าส่งตามนโยบาย (ต่างจังหวัด ' + Q.ratePer10Km + ' บาท/10 กม.) ' + money(fee) + ' บาท</b>') + '</div>' +
     (Q.formatted ? '<p class="small muted">ตำแหน่งที่พบ: ' + esc(Q.formatted) + ' · <a target="_blank" href="https://www.google.com/maps?q=' + Q.lat + ',' + Q.lng + '">ดูบนแผนที่</a></p>' : '') +
-    '<h3>ข้อมูลจากฝ่ายขาย</h3>' +
+    '<h3>ข้อมูลจากฝ่ายขาย</h3>' + bmField(f) +
     '<div class="row"><div><label>ประเภทสินค้า</label><input type="text" name="productType" value="' + keep('productType') + '" placeholder="เช่น เฟรมผ้าใบ"></div>' +
     '<div><label>เบอร์ติดต่อลูกค้า</label><input type="tel" name="phone" value="' + keep('phone') + '"></div></div>' +
     '<div class="row"><div><label>กำไรขั้นต้น (บาท)</label><input type="number" name="grossProfit" inputmode="decimal" value="' + keep('grossProfit') + '"></div>' +
@@ -249,6 +252,27 @@ function renderUpcountry(f, value, low) {
   fc.oninput = whyCheck; whyCheck();
   $('#ud').onchange = function () { pick = { upcountry: true, date: this.value }; };
   $('#send').onclick = function () { submitUpcountry(f, fee, low); };
+  $('#addBm').onclick = function () {
+    ask('เพิ่มชื่อผู้จัดการสาขา', [{ name: 'name', label: 'ชื่อ-นามสกุล ผู้จัดการสาขา', required: true },
+      { type: 'note', value: 'สาขา: ' + branchName(me.branchCode) + ' · คลังจะตรวจชื่อใหม่อีกครั้ง' }], 'เพิ่มชื่อ').then(function (v) {
+      if (!v) return;
+      call('addMyName', v.name, me.branchCode, 'ผจก.สาขา').then(function (p) {
+        B.sales.push(p);
+        renderQuote(f);
+        f.elements.branchManager.value = p.name;
+      }).catch(fail);
+    });
+  };
+}
+
+/** ผู้ขอรอบรถต่างจังหวัด = ผู้จัดการสาขา (พนักงานขายกรอกแทนได้) */
+function bmField(f) {
+  var mgrs = B.sales.filter(function (x) { return x.manager && x.branchCode === me.branchCode; });
+  var cur = f.elements.branchManager ? f.elements.branchManager.value : (mgrs.some(function (x) { return x.name === me.name; }) ? me.name : '');
+  return '<label>ผู้ขอรอบรถ (ผู้จัดการสาขา)</label><select name="branchManager"><option value="">— เลือกผู้จัดการสาขา —</option>' +
+    mgrs.map(function (x) { return '<option value="' + esc(x.name) + '"' + (x.name === cur ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') +
+    '</select><button type="button" class="link" id="addBm">+ ไม่มีชื่อผู้จัดการสาขาในรายการ</button>' +
+    (!mgrs.some(function (x) { return x.name === me.name; }) ? '<div class="small muted">กรอกโดย ' + esc(me.name) + ' · ชื่อผู้จัดการสาขาจะขึ้นในช่อง "ขอรอบรถโดย" บนใบแจ้ง</div>' : '');
 }
 
 function submitUpcountry(f, fee, low) {
@@ -259,6 +283,7 @@ function submitUpcountry(f, fee, low) {
   if (!(Number(e.value.value) > 0)) return toast('กรุณาใส่มูลค่าสินค้า', true);
   if (!e.qty.value.trim()) return toast('กรุณาใส่จำนวนสินค้า', true);
   if (!stock) return toast('กรุณาเลือกว่าของอยู่ที่ไหน', true);
+  if (!e.branchManager.value) return toast('กรุณาเลือกผู้จัดการสาขาที่เป็นผู้ขอรอบรถ', true);
   if (!e.productType.value.trim()) return toast('กรุณาใส่ประเภทสินค้า', true);
   if (!e.phone.value.trim()) return toast('กรุณาใส่เบอร์ติดต่อลูกค้า', true);
   if (e.grossProfit.value === '') return toast('กรุณาใส่กำไรขั้นต้น', true);
@@ -269,7 +294,7 @@ function submitUpcountry(f, fee, low) {
   call('submitRequest', {
     requester: me.name, branchCode: me.branchCode, customer: e.customer.value, mapsUrl: e.mapsUrl.value,
     address: e.address.value, value: e.value.value, qty: e.qty.value, stock: stock, lowMargin: e.lowMargin.checked,
-    date: pick.date, productType: e.productType.value, phone: e.phone.value, grossProfit: e.grossProfit.value,
+    date: pick.date, branchManager: e.branchManager.value, productType: e.productType.value, phone: e.phone.value, grossProfit: e.grossProfit.value,
     poNo: e.poNo.value, collectFee: collect, feeCharged: fc, feeReason: e.feeReason.value, trNo: e.trNo.value, note: e.note.value
   }).then(function (r) {
     Q = null; pick = null;
@@ -389,6 +414,7 @@ function detailKv(r) {
     ['ค่าส่ง', r.lowMargin ? 'กระดาษ/Low Margin · เก็บ ' + money(r.feeCharged) : 'นโยบาย ' + money(r.feePolicy) + ' · เก็บ ' + money(r.feeCharged) + (r.feeReason ? ' (' + r.feeReason + ')' : '')],
     ['TR', r.trNo], ['ผู้รับ', [r.phone, r.timeWindow].filter(String).join(' · ')], ['หมายเหตุ', r.note]];
   if (r.upcountry) {
+    if (r.branchManager) rows.splice(1, 0, ['ผู้ขอรอบรถ', r.branchManager + ' (ผจก.สาขา) · กรอกโดย ' + r.requester]);
     rows.splice(1, 0, ['ต่างจังหวัด', (r.productType || '') + (r.poNo ? ' · PO ' + r.poNo : '') + ' · กำไรขั้นต้น ' + money(r.grossProfit) +
       ' บาท' + (r.grossProfitPct !== '' && r.grossProfitPct != null ? ' (' + r.grossProfitPct + '%)' : '') + (r.collectFee ? '' : ' · ไม่เก็บค่าส่ง')]);
     if (r.cost) rows.push(['ประมาณการ', 'รวม ' + money(r.cost.total) + ' บาท (น้ำมัน ' + money(r.cost.fuel) + ' · ค่าเสื่อม ' + money(r.cost.depreciation) +
@@ -621,7 +647,7 @@ function renderNames() {
   call('whBoard', staff.pin, B.today, B.today).then(function (d) {
     if (!d.newStaff.length) { pane.innerHTML = '<p class="muted center">ไม่มีชื่อใหม่รอตรวจ</p>'; return; }
     pane.innerHTML = '<p class="small muted">ชื่อที่พนักงานเพิ่มเอง · ถ้าซ้ำกับชื่อเดิม ให้แก้ชื่อให้ตรงกัน หรือปิดชื่อนี้</p>' + d.newStaff.map(function (p, i) {
-      return '<div class="card"><div class="title">' + esc(p.name) + '</div><div class="small muted">' + esc(branchName(p.branchCode)) + ' · เพิ่มเมื่อ ' + esc(p.createdAt) + '</div>' +
+      return '<div class="card"><div class="title">' + esc(p.name) + '</div><div class="small muted">' + esc(p.role === 'ผจก.สาขา' ? 'ผู้จัดการสาขา' : p.role === 'คลัง' ? 'คลัง' : 'พนักงานขาย') + ' · ' + esc(branchName(p.branchCode)) + ' · เพิ่มเมื่อ ' + esc(p.createdAt) + '</div>' +
         '<div class="actions"><button class="btn small" data-op="approve" data-i="' + i + '">ยืนยันชื่อ</button>' +
         '<button class="btn small ghost" data-op="rename" data-i="' + i + '">แก้ชื่อ</button>' +
         '<button class="btn small bad" data-op="close" data-i="' + i + '">ปิดชื่อนี้</button></div></div>';

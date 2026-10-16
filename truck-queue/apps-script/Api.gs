@@ -39,24 +39,25 @@ function getBootstrap() {
     branches: branches.filter(function (b) { return b.status === 'เปิด'; }).map(function (b) {
       return { code: b.code, name: b.name, zone: b.zone, zoneManager: b.zoneManager, bookable: bookableBranch_(b, s), hasCoords: !!(b.lat && b.lng) };
     }),
-    sales: staff.filter(function (p) { return p.role === 'ขาย' && p.status !== 'ปิด'; })
-      .map(function (p) { return { name: p.name, branchCode: String(p.branchCode) }; }),
+    sales: staff.filter(function (p) { return (p.role === 'ขาย' || p.role === ROLE_BM) && p.status !== 'ปิด'; })
+      .map(function (p) { return { name: p.name, branchCode: padCode_(p.branchCode), manager: p.role === ROLE_BM }; }),
     warehouse: staff.filter(function (p) { return p.role === 'คลัง' && p.status !== 'ปิด'; }).map(function (p) { return p.name; }),
     zoneManagers: branches.reduce(function (a, b) { if (b.zoneManager && a.indexOf(b.zoneManager) === -1) a.push(b.zoneManager); return a; }, []),
     stockOptions: STOCK_OPTIONS
   };
 }
 
-/** คนที่ยังไม่มีชื่อในรายการ เพิ่มชื่อตัวเอง (ขึ้นป้าย "ใหม่" ให้คลังตรวจ) */
-function addMyName(name, branchCode) {
-  name = clean_(name, 40);
-  branchCode = clean_(branchCode, 10);
+/** คนที่ยังไม่มีชื่อในรายการ เพิ่มชื่อตัวเอง (ขึ้นป้าย "ใหม่" ให้คลังตรวจ) · role: 'ขาย' (ค่าเริ่มต้น) หรือ 'ผจก.สาขา' */
+function addMyName(name, branchCode, role) {
+  name = clean_(name, 60);
+  branchCode = padCode_(clean_(branchCode, 10));
+  role = role === ROLE_BM ? ROLE_BM : 'ขาย';
   if (!name) throw new Error('กรุณาใส่ชื่อ');
   if (!branchMap_()[branchCode]) throw new Error('ไม่พบสาขา');
   return withLock_(function () {
-    var dup = readAll_(SHEET.STAFF).some(function (p) { return p.name === name && String(p.branchCode) === branchCode && p.role === 'ขาย'; });
-    if (!dup) append_(SHEET.STAFF, { name: name, branchCode: branchCode, role: 'ขาย', status: 'ใหม่', createdAt: nowStr_() });
-    return { name: name, branchCode: branchCode };
+    var dup = readAll_(SHEET.STAFF).some(function (p) { return p.name === name && padCode_(p.branchCode) === branchCode && p.role === role; });
+    if (!dup) append_(SHEET.STAFF, { name: name, branchCode: branchCode, role: role, status: 'ใหม่', createdAt: nowStr_() });
+    return { name: name, branchCode: branchCode, manager: role === ROLE_BM };
   });
 }
 
@@ -168,6 +169,11 @@ function submitUpcountry_(f, q, s) {
   var productType = clean_(f.productType, 100);
   var phone = clean_(f.phone, 40);
   var gp = f.grossProfit === '' || f.grossProfit === undefined ? NaN : Number(f.grossProfit);
+  var bm = clean_(f.branchManager, 60);
+  var bmOk = readAll_(SHEET.STAFF).some(function (p) {
+    return p.role === ROLE_BM && p.status !== 'ปิด' && p.name === bm && padCode_(p.branchCode) === padCode_(f.branchCode);
+  });
+  if (!bm || !bmOk) throw new Error('กรุณาเลือกผู้จัดการสาขาที่เป็นผู้ขอรอบรถ');
   if (!productType) throw new Error('กรุณาใส่ประเภทสินค้า');
   if (!phone) throw new Error('กรุณาใส่เบอร์ติดต่อลูกค้า');
   if (!(gp >= 0)) throw new Error('กรุณาใส่กำไรขั้นต้น (บาท)');
@@ -200,10 +206,10 @@ function submitUpcountry_(f, q, s) {
       status: STATUS.APPROVAL, updatedAt: nowStr_(), updatedBy: requester, legacy: false,
       kind: KIND_UP, poNo: clean_(f.poNo, 40), grossProfit: gp,
       grossProfitPct: value > 0 ? Math.round(gp / value * 1000) / 10 : '', productType: productType,
-      collectFee: collect, whRoundTripKm: whKm
+      collectFee: collect, whRoundTripKm: whKm, branchManager: bm
     };
     append_(SHEET.REQ, rec);
-    log_(rec.id, requester, 'ขอรอบรถต่างจังหวัด', q.province + ' · ' + q.distanceKm + ' กม. · เสนอวัน ' + thaiDate_(date));
+    log_(rec.id, requester, 'ขอรอบรถต่างจังหวัด', 'ผู้ขอ ' + bm + ' · ' + q.province + ' · ' + q.distanceKm + ' กม. · เสนอวัน ' + thaiDate_(date));
     return { id: rec.id, status: rec.status, date: date, dateLabel: thaiDate_(date) };
   });
 }
@@ -220,7 +226,7 @@ function publicView_(r) {
   return { id: r.id, requester: r.requester, customer: r.customer, qty: r.qty, date: String(r.date),
     dateLabel: thaiDate_(String(r.date)), plate: r.plate, status: r.status, reason: r.reason,
     feeCharged: r.feeCharged, urgent: r.urgent === true, needsApproval: r.needsApproval === true,
-    upcountry: r.kind === KIND_UP, province: r.province, formUrl: r.kind === KIND_UP ? formUrl_(r.id) : '',
+    upcountry: r.kind === KIND_UP, province: r.province, branchManager: r.branchManager || '', formUrl: r.kind === KIND_UP ? formUrl_(r.id) : '',
     approvals: { zone: r.apprZone, ceo: r.apprCeo, wh: r.apprWh, coo: r.apprCoo } };
 }
 
@@ -256,7 +262,7 @@ function fullView_(r) {
   v.lowMargin = r.lowMargin === true;
   v.underPolicy = !v.lowMargin && Number(r.feeCharged) < Number(r.feePolicy);
   if (r.kind === KIND_UP) {
-    ['poNo', 'grossProfit', 'grossProfitPct', 'productType', 'whRoundTripKm', 'costTotal'].forEach(function (k) { v[k] = r[k]; });
+    ['poNo', 'grossProfit', 'grossProfitPct', 'productType', 'whRoundTripKm', 'costTotal', 'branchManager'].forEach(function (k) { v[k] = r[k]; });
     v.formUrl = formUrl_(r.id);
     v.collectFee = r.collectFee !== false;
     try { v.cost = r.cost ? JSON.parse(r.cost) : null; } catch (e) { v.cost = null; }
@@ -409,7 +415,7 @@ function formData_(id) {
   var s = settings_();
   return {
     id: r.id, createdLabel: thaiDate_(String(r.createdAt).slice(0, 10)), branchName: r.branchName, branchCode: String(r.branchCode),
-    requester: r.requester, customer: r.customer, phone: r.phone, poNo: r.poNo, value: Number(r.value) || 0,
+    requester: r.requester, branchManager: r.branchManager || r.requester, customer: r.customer, phone: r.phone, poNo: r.poNo, value: Number(r.value) || 0,
     grossProfit: r.grossProfit, grossProfitPct: r.grossProfitPct, productType: r.productType, qty: r.qty,
     distanceKm: r.distanceKm, collectFee: r.collectFee !== false, feeCharged: Number(r.feeCharged) || 0,
     feePolicy: r.feePolicy, feeReason: r.feeReason, address: r.address, mapsUrl: r.mapsUrl, province: r.province,

@@ -110,6 +110,8 @@ function ready() {
   const coords = { '00005': [13.70, 100.40], '00019': [13.75, 100.57], '00025': [13.67, 100.61] };
   const sh = S.__sheets['สาขา'];
   sh._rows.forEach((r, i) => { if (i && coords[r[0]]) { r[6] = coords[r[0]][0]; r[7] = coords[r[0]][1]; } });
+  S.addMyName('สมชาย ใจดี', '00005', 'ผจก.สาขา');   // ผู้จัดการสาขาสายสี่ (ผู้ขอรอบรถต่างจังหวัด)
+  S.__sheets['พนักงาน']._rows.find(r => r[0] === 'สมชาย ใจดี')[3] = 'ใช้งาน';
   Object.assign(S.__props, { PIN_WH: 'Klangsk', PIN_ZONE: 'zonemgr', PIN_CEO: 'ceoppp', PIN_COO: 'cooqqq' });
   return S;
 }
@@ -175,7 +177,7 @@ test('ค่าส่งต่ำกว่านโยบายต้องม�
 });
 
 const korat = { ...base, mapsUrl: 'https://maps.app.goo.gl/korat', value: 20000, qty: '550 ชิ้น', productType: 'เฟรมผ้าใบ',
-  phone: '081-000-0000', grossProfit: 4000, poNo: 'PO-1', date: '2026-10-23' };
+  phone: '081-000-0000', grossProfit: 4000, poNo: 'PO-1', date: '2026-10-23', branchManager: 'สมชาย ใจดี' };
 
 test('ต่างจังหวัด: ใช้อัตรา 90 บาท และต้องกรอกข้อมูลตามใบแจ้ง', () => {
   const S = ready();
@@ -184,6 +186,9 @@ test('ต่างจังหวัด: ใช้อัตรา 90 บาท �
   assert.equal(q.rounds.length, 0);
   assert.equal(q.feePolicy, S.policyFee_(q.distanceKm, 20000, null, 90));
   assert.equal(q.upcountryEarliest, '2026-10-22');
+  assert.throws(() => S.submitRequest({ ...korat, branchManager: '' }), /ผู้จัดการสาขา/);
+  assert.throws(() => S.submitRequest({ ...korat, branchManager: 'หน่อย' }), /ผู้จัดการสาขา/);   // พนักงานขาย ไม่ใช่ ผจก.สาขา
+  assert.ok(J(S.getBootstrap()).sales.some(x => x.name === 'สมชาย ใจดี' && x.manager === true));
   assert.throws(() => S.submitRequest({ ...korat, productType: '' }), /ประเภทสินค้า/);
   assert.throws(() => S.submitRequest({ ...korat, grossProfit: '' }), /กำไรขั้นต้น/);
   assert.throws(() => S.submitRequest({ ...korat, date: '2026-10-21' }), /ต้องไม่ก่อน/);
@@ -229,6 +234,8 @@ test('ต่างจังหวัด: ใบแจ้งสำหรับพ
   assert.equal(d.appr.ceo, null);
   assert.equal(d.cost, null);
   assert.equal(d.zoneManager, 'อธินันท์ วีระจิตต์ (อัฐ)');
+  assert.equal(d.branchManager, 'สมชาย ใจดี');
+  assert.equal(d.requester, 'หน่อย');
   const metro = S.submitRequest({ ...base, date: '2026-10-21', plate: 'ถศ 6598' });
   assert.throws(() => S.formData_(metro.id), /ไม่ใช่งานต่างจังหวัด/);
   assert.equal(J(S.branchRequests('00005')).find(x => x.id === metro.id).formUrl, '');

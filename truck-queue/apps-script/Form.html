@@ -52,7 +52,8 @@
         '<div class="muted">' + esc(stamp.date) + ' ' + esc(stamp.time) + (stamp.note ? ' · ' + esc(stamp.note) : '') + '</div>';
     }
     function requester() {
-      return '<div class="stamp">ส่งคำขอในระบบ</div><div class="nm">(' + esc(D.requester) + ')</div><div class="muted">สาขา ' + esc(D.branchName) + '</div><div class="muted">' + esc(D.createdLabel) + '</div>';
+      return '<div class="stamp">ส่งคำขอในระบบ</div><div class="nm">(' + esc(D.branchManager) + ')</div><div class="muted">ผู้จัดการสาขา ' + esc(D.branchName) + '</div>' +
+        '<div class="muted">' + esc(D.createdLabel) + (D.requester && D.requester !== D.branchManager ? ' · กรอกโดย ' + esc(D.requester) : '') + '</div>';
     }
     var c = D.cost || {};
     var hasCost = !!D.cost;
