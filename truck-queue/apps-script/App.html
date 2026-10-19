@@ -193,7 +193,7 @@ function renderForm() {
     return;
   }
   PO = [];
-  pane.innerHTML = '<form id="f" class="card" autocomplete="off">' +
+  pane.innerHTML = '<div class="note info small">คลังแจ้งผลเวลา <b>10:00</b> และ <b>16:00 น.</b> · <b>ห้ามรับปากวันส่งกับลูกค้า</b>จนกว่าสถานะเป็น "ยืนยันแล้ว" · เลื่อน/ยกเลิกเองได้ถึง 16:00 น. ของวันก่อนส่ง</div>' + '<form id="f" class="card" autocomplete="off">' +
     '<label>ส่งสินค้าให้ลูกค้า</label><div class="seg">' +
       '<label><input type="radio" name="area" value="metro"><span>กรุงเทพฯ และปริมณฑล</span></label>' +
       '<label><input type="radio" name="area" value="up"><span>ต่างจังหวัด</span></label></div>' +
@@ -418,6 +418,7 @@ function submit(f, fee, low) {
     Q = null; pick = null; PO = [];
     $('#pane').innerHTML = '<div class="card center"><h2>ส่งคำขอแล้ว</h2><p>เลขคิว <b>' + esc(r.id) + '</b></p>' +
       '<p>วันส่ง ' + esc(r.dateLabel) + '</p><p><span class="badge ' + (r.status === STATUS.APPROVAL ? 'warn' : 'info') + '">' + esc(r.status) + '</span></p>' +
+      '<p class="small muted">คลังแจ้งผลเวลา 10:00 และ 16:00 น. · ยังไม่ต้องรับปากลูกค้าจนกว่าสถานะเป็น "ยืนยันแล้ว"</p>' +
       '<button class="btn block" id="again">ขอคิวรายการใหม่</button><button class="btn ghost block" id="tomine">ดูคำขอของสาขา</button></div>';
     $('#again').onclick = function () { render(); };
     $('#tomine').onclick = function () { view = 'mine'; render(); };
@@ -443,7 +444,7 @@ function renderMine() {
   call('branchRequests', me.branchCode).then(function (list) {
     if (!list.length) { pane.innerHTML = '<p class="muted center">ยังไม่มีคำขอใน 30 วันที่ผ่านมา</p>'; return; }
     pane.innerHTML = list.map(function (r) {
-      var canCancel = r.status === STATUS.PENDING || r.status === STATUS.APPROVAL;
+      var canCancel = r.canChange;
       var canAttach = [STATUS.PENDING, STATUS.APPROVAL, STATUS.CONFIRMED].indexOf(r.status) !== -1 && r.poCount < PO_MAX;
       return '<div class="card"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
         '<div class="small muted">' + esc(r.id) + ' · ' + esc(r.requester) + ' · ' + esc(r.qty) + '</div>' +
@@ -452,7 +453,10 @@ function renderMine() {
         (Number(r.feeCharged) ? ' · ค่าส่ง ' + money(r.feeCharged) + ' บาท' : '') + '</div>' +
         (r.needsApproval ? '<div class="small muted">' + apprLine(r.approvals, r.upcountry) + '</div>' : '') +
         (r.reason ? '<div class="note warn small">' + esc(r.reason) + '</div>' : '') +
-        '<div class="actions">' + (canCancel ? '<button class="btn bad small" data-c="' + esc(r.id) + '">ยกเลิกคำขอ</button>' : '') +
+        (r.canChange ? '<div class="small muted">เลื่อน/ยกเลิกเองได้ถึง ' + esc(r.changeDeadline) + '</div>'
+          : [STATUS.PENDING, STATUS.APPROVAL, STATUS.CONFIRMED].indexOf(r.status) !== -1 ? '<div class="small muted">เลยเวลาเลื่อน/ยกเลิกเองแล้ว · ติดต่อคลัง</div>' : '') +
+        '<div class="actions">' + (r.canMove ? '<button class="btn small ghost" data-mv="' + esc(r.id) + '">เลื่อนวันส่ง</button>' : '') +
+        (canCancel ? '<button class="btn bad small" data-c="' + esc(r.id) + '">ยกเลิกคำขอ</button>' : '') +
         (r.formUrl ? '<a class="btn small ghost" target="_blank" href="' + esc(r.formUrl) + '">ใบแจ้ง (พิมพ์)</a>' : '') +
         (r.poUrl ? '<a class="btn small ghost" target="_blank" href="' + esc(r.poUrl) + '">ใบสั่งซื้อ (' + r.poCount + ' ไฟล์)</a>' : '') +
         (canAttach ? '<button class="btn small ghost" data-po="' + esc(r.id) + '" data-n="' + r.poCount + '">＋ แนบใบสั่งซื้อ</button>' : '') + '</div></div>';
@@ -464,6 +468,26 @@ function renderMine() {
       };
     });
     pane.querySelectorAll('[data-po]').forEach(function (b) { b.onclick = function () { attachForm(b.dataset.po, +b.dataset.n); }; });
+    pane.querySelectorAll('[data-mv]').forEach(function (b) { b.onclick = function () { moveForm(b.dataset.mv); }; });
+  }).catch(fail);
+}
+
+/** สาขาเลื่อนวันส่ง: เลือกรอบใหม่จากรอบที่ผ่านพื้นที่ลูกค้า (คลังต้องยืนยันใหม่) */
+function moveForm(id) {
+  toast('กำลังหารอบที่เลื่อนได้…');
+  call('moveOptions', id).then(function (o) {
+    var ok = o.rounds.filter(function (r) { return r.left > 0 && !r.tooSoon; });
+    if (!ok.length) return toast('ไม่มีรอบว่างใน 2 สัปดาห์นี้ กรุณาติดต่อคลัง', true);
+    ask('เลื่อนวันส่ง · ' + id, [
+      { type: 'note', value: 'เลื่อนแล้วสถานะกลับเป็น "รอยืนยัน" ให้คลังยืนยันใหม่' + (ok.some(function (r) { return r.needsApproval; }) ? ' · รอบที่มีป้าย "ต้องอนุมัติ" จะเริ่มขออนุมัติใหม่' : '') },
+      { name: 'round', label: 'รอบใหม่', type: 'select', required: true, options: ok.map(function (r) {
+        return { value: r.date + '|' + r.plate, label: r.label + ' · ' + r.plate + ' · เหลือ ' + r.left + ' จุด' + (r.needsApproval ? ' · ต้องอนุมัติ' : '') };
+      }) }
+    ], 'เลื่อนวัน').then(function (v) {
+      if (!v) return;
+      var p = v.round.split('|');
+      call('moveMine', id, me.name, p[0], p[1]).then(function (r) { toast('เลื่อนเป็น ' + r.dateLabel + ' แล้ว · รอคลังยืนยัน'); renderMine(); }).catch(fail);
+    });
   }).catch(fail);
 }
 

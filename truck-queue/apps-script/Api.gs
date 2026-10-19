@@ -252,20 +252,79 @@ function publicView_(r) {
   return { id: r.id, requester: r.requester, customer: r.customer, qty: r.qty, date: String(r.date),
     dateLabel: thaiDate_(String(r.date)), plate: r.plate, status: r.status, reason: r.reason,
     feeCharged: r.feeCharged, urgent: r.urgent === true, needsApproval: r.needsApproval === true,
-    upcountry: r.kind === KIND_UP, province: r.province, branchManager: r.branchManager || '', formUrl: r.kind === KIND_UP ? formUrl_(r.id) : '',
+    upcountry: r.kind === KIND_UP, province: r.province,
+    canChange: canBranchChange_(r), canMove: canBranchChange_(r) && r.kind !== KIND_UP && r.urgent !== true,
+    changeDeadline: changeDeadline_(r), branchManager: r.branchManager || '', formUrl: r.kind === KIND_UP ? formUrl_(r.id) : '',
     poCount: poFilesOf_(r).length, poUrl: poFilesOf_(r).length ? poUrl_(r.id) : '',
     approvals: { zone: r.apprZone, ceo: r.apprCeo, wh: r.apprWh, coo: r.apprCoo } };
 }
 
-/** คนขอยกเลิกได้เฉพาะงานที่ยังไม่ยืนยัน */
+/**
+ * สาขาเลื่อน/ยกเลิกเองได้ถึง 16:00 น. (cutoffHour) ของวันก่อนส่ง — ตามแผนรอบรถ (ก่อนแผนงานขนส่งออก)
+ * หลังจากนั้นต้องติดต่อคลัง
+ */
+function canBranchChange_(r) {
+  if ([STATUS.PENDING, STATUS.APPROVAL, STATUS.CONFIRMED].indexOf(r.status) === -1 || r.legacy === true) return false;
+  var lastDay = addDays_(String(r.date), -1), today = today_();
+  return today < lastDay || (today === lastDay && nowHour_() < settings_().cutoffHour);
+}
+function changeDeadline_(r) {
+  return thaiDate_(addDays_(String(r.date), -1)) + ' ' + settings_().cutoffHour + ':00 น.';
+}
+function assertBranchChange_(r) {
+  if ([STATUS.PENDING, STATUS.APPROVAL, STATUS.CONFIRMED].indexOf(r.status) === -1) throw new Error('คำขอนี้ปิดแล้ว');
+  if (!canBranchChange_(r)) throw new Error('เลยเวลา ' + changeDeadline_(r) + ' แล้ว เลื่อนหรือยกเลิกเองไม่ได้ กรุณาติดต่อคลัง');
+}
+
+/** รอบที่สาขาเลื่อนไปได้ (คำนวณจากที่อยู่ลูกค้าเดิม) */
+function moveOptions(id) {
+  var r = findRequest_(id);
+  assertBranchChange_(r);
+  if (r.kind === KIND_UP || r.urgent === true) throw new Error('งานต่างจังหวัด/งานด่วน เลื่อนผ่านระบบไม่ได้ กรุณายกเลิกแล้วขอใหม่ หรือติดต่อคลัง');
+  var q = quote({ branchCode: r.branchCode, mapsUrl: r.mapsUrl, address: r.address, value: r.value });
+  return { approvalEarliest: q.approvalEarliest, approvalLeadWorkDays: q.approvalLeadWorkDays,
+    rounds: q.rounds.filter(function (x) { return !(x.date === String(r.date) && x.plate === String(r.plate)); }) };
+}
+
+/** สาขาเลื่อนวันส่ง: คลังต้องยืนยันใหม่ · ถ้ารอบใหม่ต้องอนุมัติ เริ่มขออนุมัติใหม่ */
+function moveMine(id, actor, date, plate) {
+  actor = clean_(actor, 40);
+  if (!actor) throw new Error('กรุณาเลือกชื่อก่อนเลื่อนวัน');
+  var s = settings_();
+  return withLock_(function () {
+    var r = findRequest_(id);
+    assertBranchChange_(r);
+    if (r.kind === KIND_UP || r.urgent === true) throw new Error('งานต่างจังหวัด/งานด่วน เลื่อนผ่านระบบไม่ได้ กรุณายกเลิกแล้วขอใหม่ หรือติดต่อคลัง');
+    var q = quote({ branchCode: r.branchCode, mapsUrl: r.mapsUrl, address: r.address, value: r.value });
+    var round = q.rounds.filter(function (x) { return x.date === date && x.plate === plate; })[0];
+    if (!round) throw new Error('รอบที่เลือกจองไม่ได้แล้ว กรุณาเลือกใหม่');
+    if (round.date === String(r.date) && round.plate === String(r.plate)) throw new Error('เป็นรอบเดิม');
+    if (round.left <= 0) throw new Error('รอบ ' + round.label + ' เต็มแล้ว');
+    if (round.needsApproval && round.date < q.approvalEarliest) {
+      throw new Error('รอบนี้ต้องอนุมัติ ต้องขอล่วงหน้าอย่างน้อย ' + s.approvalLeadWorkDays + ' วันทำการ');
+    }
+    var from = thaiDate_(String(r.date)) + (r.plate ? ' · ' + r.plate : '');
+    var truck = trucks_().filter(function (t) { return t.plate === round.plate; })[0];
+    r.date = round.date; r.plate = round.plate; r.driver = truck ? truck.driver : '';
+    r.onRoute = round.onRoute; r.needsApproval = round.needsApproval;
+    r.apprZone = ''; r.apprCeo = ''; r.apprWh = ''; r.apprCoo = '';
+    r.status = round.needsApproval ? STATUS.APPROVAL : STATUS.PENDING;
+    r.reason = 'สาขาเลื่อนจาก ' + from;
+    r.updatedAt = nowStr_(); r.updatedBy = actor;
+    writeRow_(SHEET.REQ, r);
+    log_(id, actor, 'เลื่อนวัน (สาขา)', from + ' → ' + thaiDate_(round.date) + ' · ' + round.plate);
+    if (round.needsApproval) notifyNext_(r, null);
+    return publicView_(r);
+  });
+}
+
+/** คนขอยกเลิกเองได้จนถึง 16:00 น. ของวันก่อนส่ง */
 function cancelMine(id, actor) {
   actor = clean_(actor, 40);
   if (!actor) throw new Error('กรุณาเลือกชื่อก่อนยกเลิก');
   return withLock_(function () {
     var r = findRequest_(id);
-    if ([STATUS.PENDING, STATUS.APPROVAL].indexOf(r.status) === -1) {
-      throw new Error('ยกเลิกเองไม่ได้ เพราะคลังยืนยันแล้ว กรุณาติดต่อคลัง');
-    }
+    assertBranchChange_(r);
     r.status = STATUS.CANCELLED; r.reason = 'คนขอยกเลิก'; r.updatedAt = nowStr_(); r.updatedBy = actor;
     writeRow_(SHEET.REQ, r);
     log_(id, actor, 'ยกเลิก (คนขอ)', '');

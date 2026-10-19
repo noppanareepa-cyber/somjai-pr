@@ -318,7 +318,7 @@ test('คลัง: ยืนยัน ย้ายวัน และปิด�
   const list = J(S.branchRequests('00005'));
   assert.equal(list.find(x => x.id === a.id).status, 'จัดส่งเรียบร้อย');
   assert.equal(list.find(x => x.id === b.id).status, 'ส่งไม่สำเร็จ');
-  assert.throws(() => S.cancelMine(a.id, 'หน่อย'), /ยกเลิกเองไม่ได้/);
+  assert.throws(() => S.cancelMine(a.id, 'หน่อย'), /ปิดแล้ว/);
 });
 
 test('เลื่อนอัตโนมัติเมื่ออนุมัติไม่ครบภายใน 16:00 วันก่อนส่ง', () => {
@@ -503,4 +503,30 @@ test('อีเมลแจ้ง ผจก.เขต (เฉพาะเขต�
   S.__mails.length = 0;
   S.submitRequest({ ...base, date: '2026-10-21', plate: 'ถศ 6598' });
   assert.equal(S.__mails.length, 0);
+});
+
+test('สาขาเลื่อน/ยกเลิกเองได้ถึง 16:00 น. ของวันก่อนส่ง (แม้คลังยืนยันแล้ว)', () => {
+  const S = ready();
+  const a = S.submitRequest({ ...base, date: '2026-10-21', plate: 'ถศ 6598' });
+  S.whUpdate('klangsk', 'ชาญวิทย์ สีสะอาด', a.id, 'confirm', { date: '2026-10-21', plate: 'ถศ 6598' });
+  let v = J(S.branchRequests('00005')).find(x => x.id === a.id);
+  assert.equal(v.canChange, true); assert.equal(v.canMove, true);
+  assert.match(v.changeDeadline, /20 ต.ค. 69 16:00/);
+  // เลื่อนไปเสาร์ 24 → กลับเป็นรอยืนยัน ให้คลังยืนยันใหม่
+  const opts = J(S.moveOptions(a.id));
+  assert.ok(!opts.rounds.some(x => x.date === '2026-10-21' && x.plate === 'ถศ 6598'));
+  const m = J(S.moveMine(a.id, 'หน่อย', '2026-10-24', 'บห 1782'));
+  assert.equal(m.status, 'รอยืนยัน'); assert.equal(m.date, '2026-10-24'); assert.match(m.reason, /สาขาเลื่อนจาก/);
+  // อังคาร 20 ต.ค. 16:05 → เลยเวลาสำหรับงานพุธ 21
+  const b = S.submitRequest({ ...base, customer: 'ลูกค้า ข', date: '2026-10-21', plate: 'ถศ 6598' });
+  S.__setNow('2026-10-20T09:05:00Z');
+  assert.equal(J(S.branchRequests('00005')).find(x => x.id === b.id).canChange, false);
+  assert.throws(() => S.cancelMine(b.id, 'หน่อย'), /เลยเวลา.*ติดต่อคลัง/);
+  assert.throws(() => S.moveMine(b.id, 'หน่อย', '2026-10-24', 'บห 1782'), /เลยเวลา/);
+  // งานเสาร์ 24 ยังยกเลิกได้
+  assert.equal(S.cancelMine(a.id, 'หน่อย').status, 'ยกเลิก');
+  // งานต่างจังหวัด: ยกเลิกได้ แต่เลื่อนผ่านระบบไม่ได้
+  const u = S.submitRequest(korat);
+  assert.equal(J(S.branchRequests('00005')).find(x => x.id === u.id).canMove, false);
+  assert.throws(() => S.moveOptions(u.id), /ต่างจังหวัด/);
 });
