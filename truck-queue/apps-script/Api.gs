@@ -18,7 +18,10 @@ function pilotCodes_(s) {
   return String(s.pilotBranches || '').split(',').map(padCode_).filter(String);
 }
 
+function isTestMode_(s) { return /^(ใช่|yes|true|1|on)$/i.test(String(s.testMode || '').trim()); }
+
 function bookableBranch_(b, s) {
+  if (b && b.status === 'เปิด' && isTestMode_(s)) return true;   // ช่วงทดลอง: เปิดทุกสาขา
   var pilot = pilotCodes_(s);
   return b && b.status === 'เปิด' && (!pilot.length || pilot.indexOf(b.code) !== -1);
 }
@@ -35,7 +38,8 @@ function getBootstrap() {
     today: today_(),
     settings: { cutoffHour: s.cutoffHour, ratePer10Km: s.ratePer10Km, minValue: s.minValue, tiers: tiers_(),
       upcountryRatePer10Km: s.upcountryRatePer10Km, kmPerLiter: s.kmPerLiter, fuelPrice: s.fuelPrice,
-      depreciationPerKm: s.depreciationPerKm, upcountryLeadWorkDays: s.upcountryLeadWorkDays, approvalLeadWorkDays: s.approvalLeadWorkDays },
+      depreciationPerKm: s.depreciationPerKm, upcountryLeadWorkDays: s.upcountryLeadWorkDays, approvalLeadWorkDays: s.approvalLeadWorkDays,
+      testMode: isTestMode_(s) },
     branches: branches.filter(function (b) { return b.status === 'เปิด'; })
       .sort(function (a, b) { return a.code < b.code ? -1 : a.code > b.code ? 1 : 0; }).map(function (b) {
       return { code: b.code, name: b.name, zone: b.zone, zoneManager: b.zoneManager, bookable: bookableBranch_(b, s), hasCoords: !!(b.lat && b.lng) };
@@ -168,7 +172,7 @@ function submitRequest(f) {
       lowMargin: lowMargin, urgent: urgent, date: date, plate: plate, driver: truck ? truck.driver : '',
       onRoute: onRoute, needsApproval: needsApproval,
       status: needsApproval ? STATUS.APPROVAL : STATUS.PENDING,
-      updatedAt: nowStr_(), updatedBy: requester, legacy: false
+      updatedAt: nowStr_(), updatedBy: requester, legacy: false, test: isTestMode_(s)
     };
     rec.poFiles = po.length ? JSON.stringify(storePoFiles_(rec.id, po)) : '';
     append_(SHEET.REQ, rec);
@@ -235,7 +239,7 @@ function submitUpcountry_(f, q, s, po) {
       status: STATUS.APPROVAL, updatedAt: nowStr_(), updatedBy: requester, legacy: false,
       kind: KIND_UP, poNo: clean_(f.poNo, 40), grossProfit: gp,
       grossProfitPct: value > 0 ? Math.round(gp / value * 1000) / 10 : '', productType: productType,
-      collectFee: collect, whRoundTripKm: whKm, branchManager: bm
+      collectFee: collect, whRoundTripKm: whKm, branchManager: bm, test: isTestMode_(s)
     };
     rec.poFiles = po && po.length ? JSON.stringify(storePoFiles_(rec.id, po)) : '';
     append_(SHEET.REQ, rec);
@@ -290,7 +294,7 @@ function publicView_(r) {
   return { id: r.id, requester: r.requester, customer: r.customer, qty: r.qty, date: String(r.date),
     dateLabel: thaiDate_(String(r.date)), plate: r.plate, status: r.status, reason: r.reason,
     feeCharged: r.feeCharged, urgent: r.urgent === true, needsApproval: r.needsApproval === true,
-    upcountry: r.kind === KIND_UP, province: r.province,
+    upcountry: r.kind === KIND_UP, province: r.province, test: r.test === true,
     canChange: canBranchChange_(r), canMove: canBranchChange_(r) && r.kind !== KIND_UP && r.urgent !== true,
     changeDeadline: changeDeadline_(r), branchManager: r.branchManager || '', formUrl: r.kind === KIND_UP ? formUrl_(r.id) : '',
     poCount: poFilesOf_(r).length, poUrl: poFilesOf_(r).length ? poUrl_(r.id) : '',

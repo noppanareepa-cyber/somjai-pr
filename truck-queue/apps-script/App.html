@@ -139,6 +139,12 @@ function render() {
     who.hidden = !me; who.textContent = me ? me.name + ' · ' + branchName(me.branchCode) + ' ✎' : '';
     who.onclick = function () { me = null; save('tq_me', null); view = 'slots'; render(); };
   }
+  var tb = $('#testBar');
+  if (B.settings.testMode && !tb) {
+    tb = document.createElement('div'); tb.id = 'testBar'; tb.className = 'testbar';
+    tb.textContent = 'โหมดทดสอบ · คำขอทั้งหมดเป็นข้อมูลทดลอง ยังไม่ใช่งานจริง';
+    document.body.insertBefore(tb, document.body.firstChild);
+  }
   if (staff) return renderStaff();
   if (!me) return renderWho();
   var app = $('#app');
@@ -535,7 +541,7 @@ function renderMine() {
       var canAttach = [STATUS.PENDING, STATUS.APPROVAL, STATUS.CONFIRMED].indexOf(r.status) !== -1 && r.poCount < PO_MAX;
       return '<div class="card"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
         '<div class="small muted">' + esc(r.id) + ' · ' + esc(r.requester) + ' · ' + esc(r.qty) + '</div>' +
-        (r.upcountry ? '<span class="badge warn">ต่างจังหวัด · ' + esc(r.province) + '</span>' : '') + '</div>' + statusBadge(r.status) + '</div>' +
+        (r.upcountry ? '<span class="badge warn">ต่างจังหวัด · ' + esc(r.province) + '</span>' : '') + (r.test ? ' <span class="badge">ทดสอบ</span>' : '') + '</div>' + statusBadge(r.status) + '</div>' +
         '<div class="small">' + (r.upcountry && !r.plate ? 'วันที่ขอ' : 'วันส่ง') + ' <b>' + esc(r.dateLabel) + '</b>' + (r.plate ? ' · ' + esc(r.plate) : r.urgent ? ' · นอกรอบ/ด่วน' : '') +
         (Number(r.feeCharged) ? ' · ค่าส่ง ' + money(r.feeCharged) + ' บาท' : '') + '</div>' +
         (r.needsApproval ? '<div class="small muted">' + apprLine(r.approvals, r.upcountry) + '</div>' : '') +
@@ -696,7 +702,7 @@ function loadBoard(from, to) {
     if (r.upcountry && r.status === STATUS.APPROVAL && !r.approvals.wh) acts.unshift(['cost', r.cost ? 'แก้ค่าขนส่ง (ใบแจ้ง)' : 'กรอกค่าขนส่ง (ใบแจ้ง)', '']);
     return '<div class="card' + (late ? ' late' : '') + '"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
       '<div class="small muted">' + esc(r.id) + ' · ' + (r.plate ? esc(r.plate) : r.urgent ? 'นอกรอบ/ด่วน — ยังไม่มีรถ' : 'ยังไม่มีรถ') + ' · ' + esc(r.dateLabel) + '</div></div>' +
-      statusBadge(r.status) + '</div>' +
+      statusBadge(r.status) + '</div>' + (r.test ? '<span class="badge">ทดสอบ</span> ' : '') +
       (r.underPolicy ? '<span class="badge warn">เก็บค่าส่งต่ำกว่านโยบาย</span> ' : '') + (r.lowMargin ? '<span class="badge info">กระดาษ/Low Margin</span> ' : '') +
       (r.needsApproval ? '<div class="small muted">' + apprLine(r.approvals, r.upcountry) + '</div>' : '') +
       detailKv(r) + (r.reason ? '<div class="note warn small">' + esc(r.reason) + '</div>' : '') +
@@ -740,7 +746,7 @@ function renderApprove() {
         ':00 น. ของวันก่อนส่ง ระบบจะเลื่อนไปรอบถัดไป · งานต่างจังหวัด: อนุมัติตามลำดับ ผจก.เขต → คลังใส่ค่าขนส่ง → CEO → COO</div>' + list.map(function (r) {
         var soon = r.date <= addDays_(B.today, 1);
         return '<div class="card' + (soon ? ' late' : '') + '"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
-          '<div class="small muted">' + esc(r.id) + ' · ส่ง ' + esc(r.dateLabel) + ' · ' + esc(r.plate || 'ยังไม่มีรถ') + '</div></div>' + statusBadge(r.status) + '</div>' +
+          '<div class="small muted">' + esc(r.id) + ' · ส่ง ' + esc(r.dateLabel) + ' · ' + esc(r.plate || 'ยังไม่มีรถ') + '</div></div>' + statusBadge(r.status) + '</div>' + (r.test ? '<span class="badge">ทดสอบ</span>' : '') +
           '<div class="small muted">' + apprLine(r.approvals, r.upcountry) + '</div>' +
           (r.verdict ? '<div class="note ' + (r.verdictGood ? 'ok' : 'bad') + '"><b>' + esc(r.verdict) + '</b></div>' : '') + detailKv(r) +
           (r.upcountry ? '<span class="badge warn">ต่างจังหวัด · ' + esc(r.province) + '</span>' : '') +

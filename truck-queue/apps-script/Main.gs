@@ -138,7 +138,35 @@ function logicSource_() {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('ระบบขอคิวรถ')
     .addItem('เติมพิกัดสาขาจากลิงก์แผนที่', 'updateBranchCoords')
+    .addSeparator()
+    .addItem('ล้างข้อมูลทดสอบ (คำขอที่ติดป้าย ทดสอบ)', 'clearTestData')
     .addToUi();
+}
+
+/** ลบคำขอทดสอบทั้งหมด (คอลัมน์ ข้อมูลทดสอบ = TRUE) พร้อมประวัติและไฟล์ใบสั่งซื้อของคำขอนั้น */
+function clearTestData() {
+  var ui = null;
+  try { ui = SpreadsheetApp.getUi(); } catch (e) { /* รันจากตัวแก้ไขสคริปต์ */ }
+  var reqs = readAll_(SHEET.REQ).filter(function (r) { return r.test === true; });
+  if (!reqs.length) { if (ui) ui.alert('ไม่มีข้อมูลทดสอบ'); return 0; }
+  if (ui && ui.alert('ลบคำขอทดสอบ ' + reqs.length + ' รายการ (รวมประวัติและไฟล์ใบสั่งซื้อ) ?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return 0;
+  return withLock_(function () {
+    var ids = {};
+    reqs.forEach(function (r) {
+      ids[r.id] = true;
+      poFilesOf_(r).forEach(function (f) { try { DriveApp.getFileById(f.id).setTrashed(true); } catch (e) { /* ไฟล์ถูกลบไปแล้ว */ } });
+    });
+    var deleteRows = function (name, rows) {
+      var sh = sheet_(name);
+      rows.sort(function (a, b) { return b - a; }).forEach(function (n) { sh.deleteRow(n); });
+    };
+    deleteRows(SHEET.REQ, reqs.map(function (r) { return r._row; }));
+    deleteRows(SHEET.LOG, readAll_(SHEET.LOG).filter(function (l) { return ids[l.id]; }).map(function (l) { return l._row; }));
+    var msg = 'ลบคำขอทดสอบแล้ว ' + reqs.length + ' รายการ';
+    Logger.log(msg);
+    if (ui) ui.alert(msg + '\nก่อนใช้งานจริง อย่าลืมเปลี่ยน ตั้งค่า → testMode เป็น ไม่');
+    return reqs.length;
+  });
 }
 
 function textColumns_(name, keys) {

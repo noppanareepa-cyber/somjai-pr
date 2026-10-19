@@ -18,6 +18,7 @@ function makeEnv() {
       getLastRow: () => rows.length,
       getMaxRows: () => Math.max(rows.length, 1000),
       appendRow: (r) => { rows.push(r.slice()); },
+      deleteRow: (n) => { rows.splice(n - 1, 1); },
       setFrozenRows() {},
       getRange: (r, c, nr = 1, nc = 1) => ({
         setValues(v) { v.forEach((row, i) => { rows[r - 1 + i] = rows[r - 1 + i] || []; row.forEach((x, j) => { rows[r - 1 + i][c - 1 + j] = x; }); }); return this; },
@@ -63,7 +64,7 @@ function makeEnv() {
       createFile: (blob) => { const id = 'file' + Object.keys(drive.files).length; drive.files[id] = blob; return { getId: () => id }; } };
       drive.folders.push(f); return f; },
     getFolderById: (id) => { const f = drive.folders.find(x => x.id === id); if (!f) throw new Error('no folder'); return f; },
-    getFileById: (id) => { const b = drive.files[id]; if (!b) throw new Error('no file'); return { getBlob: () => b }; }
+    getFileById: (id) => { const b = drive.files[id]; if (!b) throw new Error('no file'); return { getBlob: () => b, setTrashed: () => { delete drive.files[id]; } }; }
   };
   const triggers = [];
   const env = {
@@ -601,4 +602,28 @@ test('รอบมาตรฐานทุกสาย: ลูกค้าอย
   const wed = t.weekly[2].rounds.find(x => x.plate === 'ถศ 6598');
   assert.equal(wed.mine, true); assert.equal(wed.slots, 5);
   assert.ok(t.weekly[0].rounds.length >= 4);                             // วันจันทร์มีรถทุกคัน
+});
+
+test('โหมดทดสอบ: ทุกสาขาขอคิวได้ ติดป้ายทดสอบ และล้างทิ้งได้', () => {
+  const S = ready();
+  const set = (k, v) => { S.__sheets['ตั้งค่า']._rows.find(x => x[0] === k)[1] = v; };
+  assert.equal(J(S.getBootstrap()).branches.find(x => x.code === '00019').bookable, false);
+  const real = J(S.submitRequest({ ...base, customer: 'งานจริง', date: '2026-10-21', plate: 'ถศ 6598' }));
+  set('testMode', 'ใช่');
+  const b = J(S.getBootstrap());
+  assert.equal(b.settings.testMode, true);
+  assert.equal(b.branches.find(x => x.code === '00019').bookable, true);   // เปิดทุกสาขา
+  const jpg = { name: 'po.jpg', mime: 'image/jpeg', data: Buffer.from('x').toString('base64') };
+  const t1 = J(S.submitRequest({ ...base, customer: 'ทดสอบ 1', date: '2026-10-21', plate: 'ถศ 6598', poFiles: [jpg] }));
+  const t2 = J(S.submitRequest({ ...korat, customer: 'ทดสอบ 2' }));
+  const mine = J(S.branchRequests('00005'));
+  assert.equal(mine.find(x => x.id === t1.id).test, true);
+  assert.equal(mine.find(x => x.id === real.id).test, false);
+  assert.equal(Object.keys(S.__drive.files).length, 2);                  // ใบสั่งซื้อของทั้ง 2 คำขอทดสอบ
+  assert.equal(S.clearTestData(), 2);
+  const ids = S.__sheets['คำขอ']._rows.slice(1).map(r => r[0]);
+  assert.deepEqual(ids, [real.id]);                                       // เหลือแต่งานจริง
+  assert.ok(!S.__sheets['ประวัติการแก้ไข']._rows.some(r => r[1] === t1.id || r[1] === t2.id));
+  assert.equal(Object.keys(S.__drive.files).length, 0);                  // ไฟล์ใบสั่งซื้อทดสอบถูกลบ
+  assert.equal(J(S.branchRequests('00005')).length, 1);
 });

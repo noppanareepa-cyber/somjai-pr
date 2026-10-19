@@ -99,7 +99,7 @@ function sendApprovalMail_(r, role) {
       '<p style="font-size:13px;color:#555">' + (canAct ? 'กดแล้วจะเปิดหน้ายืนยันอีกครั้งก่อนบันทึก · ลิงก์ใช้ได้ 3 วัน · กรุณาอย่าส่งต่ออีเมลนี้' : 'เข้า "สำหรับคลัง / ผู้อนุมัติ" ด้วย PIN คลัง') +
       (poFilesOf_(r).length ? ' · <a href="' + e(poUrl_(r.id)) + '">ดูใบสั่งซื้อ</a>' : '') +
       (r.kind === KIND_UP ? ' · <a href="' + e(formUrl_(r.id)) + '">ดูใบแจ้งเต็ม</a>' : '') + '</p></div>';
-    MailApp.sendEmail({ to: rcpt.map(function (m) { return m.email; }).join(','), subject: (role === 'wh' ? '[รอคลัง] ' : '[รออนุมัติ] ') + r.id + ' · ' + r.customer + ' · ' + r.branchName, htmlBody: html, name: 'ระบบขอคิวรถคลังสินค้า' });
+    MailApp.sendEmail({ to: rcpt.map(function (m) { return m.email; }).join(','), subject: (r.test === true ? '[ทดสอบ] ' : '') + (role === 'wh' ? '[รอคลัง] ' : '[รออนุมัติ] ') + r.id + ' · ' + r.customer + ' · ' + r.branchName, htmlBody: html, name: 'ระบบขอคิวรถคลังสินค้า' });
     log_(r.id, 'ระบบ', 'ส่งอีเมลขออนุมัติ', ROLES[role]);
   } catch (err) {
     log_(r.id, 'ระบบ', 'ส่งอีเมลไม่สำเร็จ', ROLES[role] + ': ' + err.message);
