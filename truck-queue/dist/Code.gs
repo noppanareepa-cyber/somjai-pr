@@ -1852,7 +1852,7 @@ function sendApprovalMail_(r, role) {
     };
     var html = '<div style="font-family:sans-serif;font-size:15px;color:#111;max-width:560px">' +
       '<p>เรียน ' + e(rcpt.map(function (m) { return m.name; }).filter(String).join(', ') || ROLES[role]) + '</p>' +
-      '<p>มีคำขอรอบรถรอ' + (role === 'wh' ? 'คลังใส่ค่าขนส่ง/ยืนยันวันและรถ' : ROLES[role] + 'อนุมัติ') + ' (' + e(sum.kind) + ')</p>' +
+      '<p>มีคำขอรอบรถรอ' + (role === 'wh' ? 'คลังใส่ค่าขนส่ง/ยืนยันวันและรถ' : ' ' + ROLES[role] + ' อนุมัติ') + ' (' + e(sum.kind) + ')</p>' +
       '<table style="border-collapse:collapse;width:100%">' + sum.rows.map(function (x) {
         return '<tr><td style="padding:4px 8px;color:#555;border-bottom:1px solid #eee;white-space:nowrap">' + e(x[0]) +
           '</td><td style="padding:4px 8px;border-bottom:1px solid #eee">' + e(x[1]) + '</td></tr>';
