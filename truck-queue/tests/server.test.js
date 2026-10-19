@@ -448,7 +448,8 @@ test('อีเมลถึง CEO/COO เมื่อถึงคิว แล�
   assert.equal(S.__mails.length, 1);
   const m = S.__mails[0];
   assert.equal(m.to, 'ceo@somjai.co.th');
-  assert.match(m.htmlBody, /คำขอจากสาขา/);                              // CEO เห็นจุดเน้นคำขอของสาขา
+  assert.match(m.htmlBody, /คำขอจากสาขา/);
+  assert.match(m.htmlBody, /เรียน คุณนพนารี พัวรัตนอรุณกร</);                              // CEO เห็นจุดเน้นคำขอของสาขา
   assert.match(m.htmlBody, /✗ ไม่ผ่านเกณฑ์ · กำไรขั้นต้น 4,000 บาท = 84% ของค่าขนส่ง 4,764 บาท .*อย่างน้อย 7,146 บาท/);   // ต้อง ≥ 1.5 เท่า
   const link = m.htmlBody.match(/href="([^"]*view=act[^"]*a=1)"/)[1].replace(/&#38;/g, '&');
   const p = Object.fromEntries(new URL(link).searchParams);
@@ -459,7 +460,8 @@ test('อีเมลถึง CEO/COO เมื่อถึงคิว แล�
   assert.equal(S.emailDecide(p.id, 'ceo', p.e, p.t, true, '').status, 'รออนุมัติ');
   assert.equal(S.__mails.length, 2);                                     // ต่อไปถึงคิว COO
   assert.equal(S.__mails[1].to, 'coo@somjai.co.th');
-  assert.match(S.__mails[1].htmlBody, /อนุมัติขั้นสุดท้าย/);              // COO เห็นจุดเน้นค่าใช้จ่าย
+  assert.match(S.__mails[1].htmlBody, /อนุมัติขั้นสุดท้าย/);
+  assert.match(S.__mails[1].htmlBody, /เรียน คุณวิภวานี วิทยานนท์</);              // COO เห็นจุดเน้นค่าใช้จ่าย
   assert.match(S.__mails[1].htmlBody, /ค่าน้ำมัน.*1,984 บาท/);
   assert.match(S.__mails[1].htmlBody, />CEO<.*อนุมัติ/);
   assert.throws(() => S.emailDecide(p.id, 'ceo', p.e, p.t, true, ''), /อนุมัติไปแล้ว/);   // กดซ้ำไม่ได้
