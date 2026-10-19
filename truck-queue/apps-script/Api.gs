@@ -290,6 +290,7 @@ function fullView_(r) {
     ['poNo', 'grossProfit', 'grossProfitPct', 'productType', 'whRoundTripKm', 'costTotal', 'branchManager'].forEach(function (k) { v[k] = r[k]; });
     v.formUrl = formUrl_(r.id);
     v.collectFee = r.collectFee !== false;
+    if (r.costTotal !== '' && r.costTotal != null) { var sm = decisionSummary_(r); v.verdict = sm.verdict; v.verdictGood = sm.good; }
     try { v.cost = r.cost ? JSON.parse(r.cost) : null; } catch (e) { v.cost = null; }
   }
   return v;
@@ -513,6 +514,11 @@ function apprOf_(r) { return { zone: r.apprZone, ceo: r.apprCeo, wh: r.apprWh, c
 /** ตัดสินการอนุมัติ · ฝั่งคลังต้องระบุรถ/วันส่งตอนอนุมัติ */
 function decide(role, pin, actor, id, approve, reason, round) {
   requireRole_(role, pin);
+  return decideCore_(role, actor, id, approve, reason, round, '');
+}
+
+/** บันทึกการอนุมัติ (ผ่าน PIN หรือผ่านลิงก์ในอีเมล — via = ข้อความต่อท้ายในประวัติ) */
+function decideCore_(role, actor, id, approve, reason, round, via) {
   actor = clean_(actor, 60);
   reason = clean_(reason, 200);
   if (!actor) throw new Error('กรุณาเลือกชื่อผู้อนุมัติ');
@@ -529,13 +535,15 @@ function decide(role, pin, actor, id, approve, reason, round) {
     if (role === 'wh' && approve && round) applyRound_(r, round);
     if (role === 'wh' && approve && !r.plate) throw new Error('กรุณาเลือกรถก่อนอนุมัติ');
     if (role === 'wh' && approve && up) applyCost_(r, round && round.cost);
+    var before = apprOf_(r);
     var stamp = (approve ? 'อนุมัติ' : 'ไม่อนุมัติ') + ': ' + actor + ' ' + nowStr_() + (reason ? ' · ' + reason : '');
     r[{ zone: 'apprZone', ceo: 'apprCeo', wh: 'apprWh', coo: 'apprCoo' }[step]] = stamp;
     r.status = approvalStatus_(apprOf_(r));
     if (r.status === STATUS.REJECTED) r.reason = ROLES[role] + 'ไม่อนุมัติ: ' + reason;
     r.updatedAt = nowStr_(); r.updatedBy = actor;
     writeRow_(SHEET.REQ, r);
-    log_(id, actor, ROLES[role] + (approve ? ' อนุมัติ' : ' ไม่อนุมัติ'), reason);
+    log_(id, actor, ROLES[role] + (approve ? ' อนุมัติ' : ' ไม่อนุมัติ') + (via || ''), reason);
+    notifyExecs_(r, before);
     return fullView_(r);
   });
 }

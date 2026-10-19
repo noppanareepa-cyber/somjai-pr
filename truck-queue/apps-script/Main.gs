@@ -62,6 +62,7 @@ function doGet(e) {
   if (p.view === 'sheet') return driverSheet_(p);
   if (p.view === 'form') return upcountryForm_(p);
   if (p.view === 'po') return poView_(p);
+  if (p.view === 'act') return actView_(p);
   return template_('Index').evaluate()
     .setTitle('ขอคิวรถคลังสินค้า · สมใจ')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')

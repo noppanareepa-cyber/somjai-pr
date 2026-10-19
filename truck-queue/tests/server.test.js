@@ -54,6 +54,7 @@ function makeEnv() {
   };
   const province = (lat) => lat > 14.5 ? 'นครราชสีมา' : lat > 13.9 ? 'ปทุมธานี' : 'กรุงเทพมหานคร';
   const logs = [];
+  const mails = [];
   // ── Drive จำลอง ──
   const drive = { folders: [], files: {} };
   const DriveApp = {
@@ -104,15 +105,16 @@ function makeEnv() {
     Logger: { log: (m) => logs.push(m) },
     HtmlService: {},
     DriveApp,
+    MailApp: { sendEmail: (m) => mails.push(m) },
     Date: FakeDate,
     Intl, Math, JSON, String, Number, Object, Array, Error, RegExp, encodeURIComponent, decodeURIComponent
   };
   const ctx = vm.createContext(env);
-  for (const f of ['Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api', 'Files', 'Main']) {
+  for (const f of ['Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api', 'Files', 'Notify', 'Main']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../apps-script', f + '.gs'), 'utf8'), ctx, { filename: f + '.gs' });
   }
   ctx.__setNow = (iso) => { now = Date.parse(iso); };
-  ctx.__sheets = sheets; ctx.__props = props; ctx.__triggers = triggers; ctx.__drive = drive;
+  ctx.__sheets = sheets; ctx.__props = props; ctx.__triggers = triggers; ctx.__drive = drive; ctx.__mails = mails;
   return ctx;
 }
 
@@ -430,4 +432,44 @@ test('กล่อง กรุงเทพฯ/ต่างจังหวัด
   // วันหยุดไม่นับเป็นวันทำการ
   S.__sheets['วันหยุด']._rows.push(['2026-10-20', 'ทดสอบ']);
   assert.equal(J(S.quote({ branchCode: '00005', mapsUrl: 'https://maps.app.goo.gl/far', value: 2000 })).approvalEarliest, '2026-10-23');
+});
+
+test('อีเมลถึง CEO/COO เมื่อถึงคิว และอนุมัติจากลิงก์ได้โดยไม่ต้องใช้ PIN', () => {
+  const S = ready();
+  const set = (k, v) => { S.__sheets['ตั้งค่า']._rows.find(x => x[0] === k)[1] = v; };
+  set('ceoEmail', 'ceo@somjai.co.th'); set('cooEmail', 'coo@somjai.co.th');
+  const r = S.submitRequest(korat);
+  S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
+  assert.equal(S.__mails.length, 0);                                     // ยังไม่ถึงคิว CEO
+  S.decide('wh', 'klangsk', 'จรินทร มีเจริญ', r.id, true, '', { date: '2026-10-26', plate: 'บห 1782',
+    cost: { roundTripKm: 496, kmPerLiter: 8, fuelPrice: 32, labor: 300 } });
+  assert.equal(S.__mails.length, 1);
+  const m = S.__mails[0];
+  assert.equal(m.to, 'ceo@somjai.co.th');
+  assert.match(m.htmlBody, /เหลือ 1,576 บาท/);                          // กำไร 4,000 + ค่าส่ง 2,340 − ค่าขนส่ง 4,764
+  const link = m.htmlBody.match(/href="([^"]*view=act[^"]*a=1)"/)[1].replace(/&#38;/g, '&');
+  const p = Object.fromEntries(new URL(link).searchParams);
+  // ลิงก์ปลอม / ตำแหน่งไม่ตรง ใช้ไม่ได้
+  assert.throws(() => S.emailDecide(p.id, 'coo', p.e, p.t, true, ''), /ลิงก์ไม่ถูกต้อง/);
+  assert.throws(() => S.emailDecide(p.id, 'ceo', p.e, 'xxx', true, ''), /ลิงก์ไม่ถูกต้อง/);
+  assert.throws(() => S.emailDecide(p.id, 'ceo', p.e, p.t, false, ''), /เหตุผล/);
+  assert.equal(S.emailDecide(p.id, 'ceo', p.e, p.t, true, '').status, 'รออนุมัติ');
+  assert.equal(S.__mails.length, 2);                                     // ต่อไปถึงคิว COO
+  assert.equal(S.__mails[1].to, 'coo@somjai.co.th');
+  assert.throws(() => S.emailDecide(p.id, 'ceo', p.e, p.t, true, ''), /อนุมัติไปแล้ว/);   // กดซ้ำไม่ได้
+  const log = S.__sheets['ประวัติการแก้ไข']._rows.filter(x => x[1] === r.id).map(x => x[3]);
+  assert.ok(log.includes('CEO อนุมัติ (ลิงก์อีเมล)'));
+  assert.equal(J(S.formData_(r.id)).appr.ceo.name, S.settings_().ceoName);  // ใบแจ้งขึ้นชื่อจริง CEO
+  // ลิงก์หมดอายุ
+  S.__setNow('2026-10-23T03:00:00Z');
+  const link2 = S.__mails[1].htmlBody.match(/href="([^"]*view=act[^"]*a=1)"/)[1].replace(/&#38;/g, '&');
+  const p2 = Object.fromEntries(new URL(link2).searchParams);
+  assert.throws(() => S.emailDecide(p2.id, 'coo', p2.e, p2.t, true, ''), /หมดอายุ/);
+});
+
+test('ไม่ใส่อีเมล = ไม่ส่ง', () => {
+  const S = ready();
+  const r = S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '', date: '2026-10-24', plate: 'บห 1782' });
+  S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
+  assert.equal(S.__mails.length, 0);
 });

@@ -630,7 +630,8 @@ function renderApprove() {
         var soon = r.date <= addDays_(B.today, 1);
         return '<div class="card' + (soon ? ' late' : '') + '"><div class="item"><div><div class="title">' + esc(r.customer) + '</div>' +
           '<div class="small muted">' + esc(r.id) + ' · ส่ง ' + esc(r.dateLabel) + ' · ' + esc(r.plate || 'ยังไม่มีรถ') + '</div></div>' + statusBadge(r.status) + '</div>' +
-          '<div class="small muted">' + apprLine(r.approvals, r.upcountry) + '</div>' + detailKv(r) +
+          '<div class="small muted">' + apprLine(r.approvals, r.upcountry) + '</div>' +
+          (r.verdict ? '<div class="note ' + (r.verdictGood ? 'ok' : 'bad') + '"><b>' + esc(r.verdict) + '</b></div>' : '') + detailKv(r) +
           (r.upcountry ? '<span class="badge warn">ต่างจังหวัด · ' + esc(r.province) + '</span>' : '') +
           '<div class="actions"><button class="btn small" data-ok="' + esc(r.id) + '" data-date="' + r.date + '" data-plate="' + esc(r.plate || '') + '">อนุมัติ</button>' +
           '<button class="btn small bad" data-no="' + esc(r.id) + '">ไม่อนุมัติ</button>' + (r.formUrl ? '<a class="btn small ghost" target="_blank" href="' + esc(r.formUrl) + '">ใบแจ้ง (พิมพ์)</a>' : '') + '</div></div>';

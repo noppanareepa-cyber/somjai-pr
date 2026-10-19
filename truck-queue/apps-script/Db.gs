@@ -70,7 +70,9 @@ var DEFAULT_SETTINGS = [
   ['warehouseLocation', '', 'พิกัดคลัง "lat,lng" หรือลิงก์ Google Maps — ใช้คำนวณระยะไป-กลับส่งต่างจังหวัด'],
   ['kmPerLiter', 8, 'อัตราสิ้นเปลืองน้ำมันตั้งต้น (กม./ลิตร)'],
   ['fuelPrice', 33, 'ราคาน้ำมันตั้งต้น (บาท/ลิตร)'],
-  ['depreciationPerKm', 5, 'ค่าเสื่อมรถ (บาท/กม.)']
+  ['depreciationPerKm', 5, 'ค่าเสื่อมรถ (บาท/กม.)'],
+  ['ceoEmail', '', 'อีเมล CEO — ใส่แล้วระบบส่งอีเมลพร้อมปุ่มอนุมัติเมื่อถึงคิว CEO (เว้นว่าง = ไม่ส่ง)'],
+  ['cooEmail', '', 'อีเมล COO — ใส่แล้วระบบส่งอีเมลพร้อมปุ่มอนุมัติเมื่อถึงคิว COO (เว้นว่าง = ไม่ส่ง)']
 ];
 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }

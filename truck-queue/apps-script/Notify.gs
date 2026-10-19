@@ -1,0 +1,113 @@
+/**
+ * อนุมัติง่ายสำหรับ CEO / COO: ถึงคิวเมื่อไรระบบส่งอีเมลสรุปงานพร้อมปุ่ม "อนุมัติ" / "ไม่อนุมัติ"
+ * กดแล้วเปิดหน้ายืนยันในเว็บแอป — ไม่ต้องใส่ PIN (ลิงก์ผูกกับเลขคิว + ตำแหน่ง และหมดอายุใน 3 วัน)
+ * ใส่อีเมลในชีต ตั้งค่า → ceoEmail / cooEmail · เว้นว่าง = ไม่ส่ง
+ */
+
+var ACT_ROLES = { ceo: { email: 'ceoEmail', name: 'ceoName' }, coo: { email: 'cooEmail', name: 'cooName' } };
+var ACT_TTL_MS = 3 * 24 * 3600 * 1000;
+
+/** หลังบันทึกการอนุมัติ: ส่งอีเมลให้ CEO/COO ที่เพิ่งถึงคิว */
+function notifyExecs_(r, before) {
+  if (r.status !== STATUS.APPROVAL) return;
+  var up = r.kind === KIND_UP, after = apprOf_(r);
+  Object.keys(ACT_ROLES).forEach(function (role) {
+    if (!approvalStepFor_(role, before, up) && approvalStepFor_(role, after, up)) sendApprovalMail_(r, role);
+  });
+}
+
+function actToken_(id, role, exp) { return sheetToken_('act|' + role + '|' + exp, id); }
+
+function actUrl_(id, role, exp, approve) {
+  return ScriptApp.getService().getUrl() + '?view=act&id=' + encodeURIComponent(id) + '&r=' + role + '&e=' + exp +
+    '&t=' + actToken_(id, role, exp) + '&a=' + (approve ? '1' : '0');
+}
+
+/** ตัวเลขที่ผู้บริหารใช้ตัดสินใจ */
+function decisionSummary_(r) {
+  var up = r.kind === KIND_UP;
+  var n = function (v) { return Number(v) || 0; };
+  var rows = [
+    ['เลขคิว', r.id], ['สาขา', r.branchName + (r.branchManager ? ' · ผู้ขอ ' + r.branchManager : ' · ' + r.requester)],
+    ['ลูกค้า', r.customer + ' · ' + (r.province || '')], ['วันส่ง', thaiDate_(String(r.date)) + (r.plate ? ' · ' + r.plate : '')],
+    ['ยอดขาย (ก่อน VAT)', money_(r.value) + ' บาท'], ['ระยะทาง', (r.distanceKm || '-') + ' กม. จากสาขา']
+  ];
+  var verdict = '';
+  if (up) {
+    var cost = n(r.costTotal), gp = n(r.grossProfit), fee = r.collectFee === false ? 0 : n(r.feeCharged);
+    var net = gp + fee - cost;
+    var c = {}; try { c = r.cost ? JSON.parse(r.cost) : {}; } catch (e) { c = {}; }
+    rows.push(['กำไรขั้นต้น', money_(gp) + ' บาท' + (r.grossProfitPct !== '' ? ' (' + r.grossProfitPct + '%)' : '')]);
+    rows.push(['ค่าส่งที่เก็บลูกค้า', r.collectFee === false ? 'ไม่เก็บ' : money_(fee) + ' บาท']);
+    rows.push(['ค่าขนส่งที่คลังประเมิน', cost ? money_(cost) + ' บาท' + (c.roundTripKm ? ' (ไป-กลับ ' + c.roundTripKm + ' กม.)' : '') : 'คลังยังไม่ประเมิน']);
+    if (c.privateCost) rows.push(['ถ้าใช้ขนส่งเอกชน', money_(c.privateCost) + ' บาท' + (c.privateCost < cost ? ' (ถูกกว่า)' : '')]);
+    if (cost) verdict = 'กำไรขั้นต้น + ค่าส่งที่เก็บ − ค่าขนส่ง = ' + (net >= 0 ? 'เหลือ ' : 'ขาด ') + money_(Math.abs(net)) + ' บาท';
+    return { rows: rows, verdict: verdict, good: net >= 0, kind: 'ส่งลูกค้าต่างจังหวัด' };
+  }
+  rows.push(['ค่าส่ง', 'นโยบาย ' + money_(r.feePolicy) + ' · เก็บ ' + money_(r.feeCharged) + ' บาท' + (r.feeReason ? ' (' + r.feeReason + ')' : '')]);
+  return { rows: rows, verdict: 'ยอดต่ำกว่าเกณฑ์และอยู่นอกเส้นทางรถ', good: true, kind: 'ยอดต่ำนอกเส้นทาง (กรุงเทพฯ/ปริมณฑล)' };
+}
+
+function money_(v) { return Number(v || 0).toLocaleString('en-US'); }
+
+function sendApprovalMail_(r, role) {
+  var s = settings_();
+  var to = String(s[ACT_ROLES[role].email] || '').trim();
+  if (!to) return;
+  try {
+    var exp = Date.now() + ACT_TTL_MS;
+    var sum = decisionSummary_(r);
+    var e = function (x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (ch) { return '&#' + ch.charCodeAt(0) + ';'; }); };
+    var btn = function (href, label, bg) {
+      return '<a href="' + e(href) + '" style="display:inline-block;padding:12px 22px;margin:4px 8px 4px 0;border-radius:8px;background:' + bg +
+        ';color:#fff;font-weight:bold;text-decoration:none;font-size:16px">' + label + '</a>';
+    };
+    var html = '<div style="font-family:sans-serif;font-size:15px;color:#111;max-width:560px">' +
+      '<p>เรียน ' + e(s[ACT_ROLES[role].name] || ROLES[role]) + '</p>' +
+      '<p>มีคำขอรอบรถรออนุมัติ (' + e(sum.kind) + ')</p>' +
+      '<table style="border-collapse:collapse;width:100%">' + sum.rows.map(function (x) {
+        return '<tr><td style="padding:4px 8px;color:#555;border-bottom:1px solid #eee;white-space:nowrap">' + e(x[0]) +
+          '</td><td style="padding:4px 8px;border-bottom:1px solid #eee">' + e(x[1]) + '</td></tr>';
+      }).join('') + '</table>' +
+      (sum.verdict ? '<p style="font-size:17px;font-weight:bold;color:' + (sum.good ? '#1f7a3a' : '#a3261d') + '">' + e(sum.verdict) + '</p>' : '') +
+      '<p>' + btn(actUrl_(r.id, role, exp, true), '✓ อนุมัติ', '#1f7a3a') + btn(actUrl_(r.id, role, exp, false), '✗ ไม่อนุมัติ', '#a3261d') + '</p>' +
+      '<p style="font-size:13px;color:#555">กดแล้วจะเปิดหน้ายืนยันอีกครั้งก่อนบันทึก · ลิงก์ใช้ได้ 3 วัน · กรุณาอย่าส่งต่ออีเมลนี้' +
+      (poFilesOf_(r).length ? ' · <a href="' + e(poUrl_(r.id)) + '">ดูใบสั่งซื้อ</a>' : '') +
+      (r.kind === KIND_UP ? ' · <a href="' + e(formUrl_(r.id)) + '">ดูใบแจ้งเต็ม</a>' : '') + '</p></div>';
+    MailApp.sendEmail({ to: to, subject: '[รออนุมัติ] ' + r.id + ' · ' + r.customer + ' · ' + r.branchName, htmlBody: html, name: 'ระบบขอคิวรถคลังสินค้า' });
+    log_(r.id, 'ระบบ', 'ส่งอีเมลขออนุมัติ', ROLES[role]);
+  } catch (err) {
+    log_(r.id, 'ระบบ', 'ส่งอีเมลไม่สำเร็จ', ROLES[role] + ': ' + err.message);
+  }
+}
+
+function checkAct_(id, role, exp, t) {
+  if (!ACT_ROLES[role] || !id || t !== actToken_(id, role, exp)) throw new Error('ลิงก์ไม่ถูกต้อง');
+  if (!(Number(exp) > Date.now())) throw new Error('ลิงก์หมดอายุแล้ว กรุณาเข้าระบบด้วย PIN เพื่ออนุมัติ');
+}
+
+/** หน้ายืนยันจากลิงก์ในอีเมล */
+function actView_(p) {
+  var id = String(p.id || ''), role = String(p.r || ''), exp = String(p.e || ''), t = String(p.t || '');
+  var data;
+  try {
+    checkAct_(id, role, exp, t);
+    var r = findRequest_(id);
+    var pending = r.status === STATUS.APPROVAL && !!approvalStepFor_(role, apprOf_(r), r.kind === KIND_UP);
+    data = { ok: true, id: id, role: role, roleLabel: ROLES[role], exp: exp, t: t, approve: p.a !== '0', pending: pending,
+      status: r.status, summary: decisionSummary_(r), poUrl: poFilesOf_(r).length ? poUrl_(id) : '',
+      formUrl: r.kind === KIND_UP ? formUrl_(id) : '' };
+  } catch (err) {
+    data = { ok: false, error: err.message };
+  }
+  var tpl = template_('Act');
+  tpl.data = JSON.stringify(data).replace(/</g, '\\u003c');
+  return tpl.evaluate().setTitle('อนุมัติ ' + id).addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/** กดยืนยันในหน้าจากอีเมล */
+function emailDecide(id, role, exp, t, approve, reason) {
+  checkAct_(String(id), String(role), String(exp), String(t));
+  var v = decideCore_(role, ROLES[role], String(id), approve === true, reason, null, ' (ลิงก์อีเมล)');
+  return { status: v.status };
+}
