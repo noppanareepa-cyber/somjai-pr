@@ -3,7 +3,7 @@
 var B = null;            // ข้อมูลตั้งต้นจาก getBootstrap()
 var me = load('tq_me');  // {name, branchCode}
 var staff = load('tq_staff'); // {role, pin, actor}
-var view = 'request';
+var view = 'slots';      // หน้าแรกของสาขา = ปฏิทินที่ว่างรอบรถ
 var Q = null;            // ผลคำนวณล่าสุดจาก quote()
 var pick = null;         // รอบที่เลือก {date, plate}
 var PO = [];             // ไฟล์ใบสั่งซื้อที่เลือกไว้ (รูปย่อแล้ว / PDF) [{name, mime, data, url}]
@@ -127,27 +127,27 @@ call('getBootstrap').then(function (b) {
   render();
 }).catch(fail);
 
-$('#who').onclick = function () { me = null; save('tq_me', null); view = 'request'; render(); };
+$('#who').onclick = function () { me = null; save('tq_me', null); view = 'slots'; render(); };
 $('#staffLink').onclick = function () { staffLogin(); };
 
 function render() {
   var who = $('#who');
   if (staff) {
     who.hidden = false; who.textContent = staff.actor + ' · ' + { wh: 'คลัง', zone: 'ผจก.เขต', ceo: 'CEO', coo: 'COO' }[staff.role] + ' ✕';
-    who.onclick = function () { staff = null; save('tq_staff', null); view = 'request'; render(); };
+    who.onclick = function () { staff = null; save('tq_staff', null); view = 'slots'; render(); };
   } else {
     who.hidden = !me; who.textContent = me ? me.name + ' · ' + branchName(me.branchCode) + ' ✎' : '';
-    who.onclick = function () { me = null; save('tq_me', null); view = 'request'; render(); };
+    who.onclick = function () { me = null; save('tq_me', null); view = 'slots'; render(); };
   }
   if (staff) return renderStaff();
   if (!me) return renderWho();
   var app = $('#app');
-  app.innerHTML = '<div class="tabs"><button data-v="request">ขอคิวส่งลูกค้า</button><button data-v="slots">ที่ว่างรอบรถ</button><button data-v="mine">คำขอของสาขา</button></div><div id="pane"></div>';
+  app.innerHTML = '<div class="tabs"><button data-v="slots">ที่ว่างรอบรถ</button><button data-v="request">ขอคิวส่งลูกค้า</button><button data-v="mine">คำขอของสาขา</button></div><div id="pane"></div>';
   app.querySelectorAll('.tabs button').forEach(function (b) {
     b.classList.toggle('on', b.dataset.v === view);
     b.onclick = function () { view = b.dataset.v; render(); };
   });
-  if (view === 'mine') renderMine(); else if (view === 'slots') renderSlots(); else renderForm();
+  if (view === 'mine') renderMine(); else if (view === 'request') renderForm(); else { view = 'slots'; renderSlots(); }
 }
 
 /** ตารางที่ว่างรอบรถ: ดูก่อนรับปากลูกค้า · ค่าตั้งต้นเฉพาะรอบที่แวะสาขาตัวเอง */
