@@ -110,7 +110,7 @@ function makeEnv() {
     Intl, Math, JSON, String, Number, Object, Array, Error, RegExp, encodeURIComponent, decodeURIComponent
   };
   const ctx = vm.createContext(env);
-  for (const f of ['Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api', 'Files', 'Notify', 'Main']) {
+  for (const f of ['Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api', 'Files', 'Notify', 'Confirm', 'Main']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../apps-script', f + '.gs'), 'utf8'), ctx, { filename: f + '.gs' });
   }
   ctx.__setNow = (iso) => { now = Date.parse(iso); };
@@ -529,4 +529,38 @@ test('สาขาเลื่อน/ยกเลิกเองได้ถึ�
   const u = S.submitRequest(korat);
   assert.equal(J(S.branchRequests('00005')).find(x => x.id === u.id).canMove, false);
   assert.throws(() => S.moveOptions(u.id), /ต่างจังหวัด/);
+});
+
+test('รายงานยืนยันรอบส่งให้สาขา (ล่วงหน้า 1 วัน): อีเมล ข้อความ LINE และหน้ารายงาน', () => {
+  const S = ready();
+  const mail = S.__sheets['อีเมลแจ้งเตือน']._rows;
+  const row = mail.find(x => x[0] === 'สาขา' && String(x[1]).startsWith('00005'));
+  assert.ok(row);                                                         // setup ใส่รายชื่อสาขาไว้ให้
+  S.setup(); assert.equal(mail.filter(x => x[0] === 'สาขา' && String(x[1]).startsWith('00005')).length, 1);   // รันซ้ำไม่ซ้ำ
+  const a = S.submitRequest({ ...base, date: '2026-10-21', plate: 'ถศ 6598', timeWindow: '9-12' });
+  const b = S.submitRequest({ ...base, customer: 'ลูกค้า ข', date: '2026-10-21', plate: 'ถศ 6598' });
+  S.whUpdate('klangsk', 'ชาญวิทย์ สีสะอาด', a.id, 'confirm', { date: '2026-10-21', plate: 'ถศ 6598' });
+  let rep = J(S.confirmReport('klangsk', '2026-10-21'));
+  assert.equal(rep.length, 1);
+  assert.deepEqual([rep[0].code, rep[0].total, rep[0].confirmed, rep[0].emails.length], ['00005', 2, 1, 0]);
+  assert.match(rep[0].text, /ยืนยันรอบส่งสินค้า พ. 21 ต.ค. 69/);
+  assert.match(rep[0].text, /โรงเรียน ก · 10 ลัง · ถศ 6598 \(ชวกร/);
+  assert.match(rep[0].text, /ยังไม่ยืนยัน/);
+  assert.match(rep[0].url, /view=confirm&date=2026-10-21&b=00005&t=/);
+  assert.deepEqual(J(S.sendBranchConfirm('klangsk', 'จรินทร มีเจริญ', '2026-10-21', ['00005'])), [{ code: '00005', ok: false, why: 'ยังไม่มีอีเมลสาขา' }]);
+  row[2] = 'saysi.branch@gmail.com';
+  S.whUpdate('klangsk', 'ชาญวิทย์ สีสะอาด', b.id, 'confirm', { date: '2026-10-21', plate: 'ถศ 6598' });
+  assert.deepEqual(J(S.sendBranchConfirm('klangsk', 'จรินทร มีเจริญ', '2026-10-21', ['00005'])), [{ code: '00005', ok: true }]);
+  const m = S.__mails.at(-1);
+  assert.equal(m.to, 'saysi.branch@gmail.com');
+  assert.match(m.subject, /\[ยืนยันรอบส่ง\] พ. 21 ต.ค. 69 · สาขาสายสี่ · 2 รายการ/);
+  rep = J(S.confirmReport('klangsk', '2026-10-21'));
+  assert.match(rep[0].lastSent, /จรินทร มีเจริญ/);
+  // หน้ารายงานของสาขา: โทเคนผิดเปิดไม่ได้
+  const url = new URL(rep[0].url);
+  assert.equal(S.sheetToken_('confirm|2026-10-21', '00005'), url.searchParams.get('t'));
+  assert.notEqual(S.sheetToken_('confirm|2026-10-21', '00006'), url.searchParams.get('t'));
+  const d = J(S.confirmData_('2026-10-21', '00005'));
+  assert.equal(d.confirmed, 2);
+  assert.throws(() => S.confirmReport('wrong', '2026-10-21'), /PIN/);
 });

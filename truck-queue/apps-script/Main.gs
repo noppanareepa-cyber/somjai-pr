@@ -47,6 +47,12 @@ function setup() {
   }, []).map(function (n) { return { group: ROLES.zone, name: n, email: '' }; })
     .concat(seedWarehouseStaff_().map(function (n) { return { group: ROLES.wh, name: n, email: '' }; }))
     .concat([{ group: ROLES.ceo, name: st.ceoName, email: st.ceoEmail || '' }, { group: ROLES.coo, name: st.cooName, email: st.cooEmail || '' }]));
+  // สาขา (สำหรับรายงานยืนยันรอบส่ง) — เพิ่มสาขาที่ยังไม่มีในชีตทุกครั้งที่รัน setup
+  var mailNames = readAll_(SHEET.MAIL).filter(function (m) { return m.group === GROUP_BRANCH; })
+    .map(function (m) { return String(m.name).trim().slice(0, 5); });
+  branches_().filter(function (b) { return b.status === 'เปิด' && mailNames.indexOf(b.code) === -1; })
+    .sort(function (a, b) { return a.code < b.code ? -1 : 1; })
+    .forEach(function (b) { append_(SHEET.MAIL, { group: GROUP_BRANCH, name: b.code + ' ' + b.name, email: '' }); });
   seedIfEmpty_(SHEET.STAFF, seedSalesStaff_().map(function (s) {
     return { name: s[0], branchCode: s[1], role: 'ขาย', status: 'ใช้งาน', createdAt: now };
   }).concat(seedWarehouseStaff_().map(function (n) {
@@ -70,6 +76,7 @@ function doGet(e) {
   if (p.view === 'form') return upcountryForm_(p);
   if (p.view === 'po') return poView_(p);
   if (p.view === 'act') return actView_(p);
+  if (p.view === 'confirm') return confirmView_(p);
   return template_('Index').evaluate()
     .setTitle('ขอคิวรถคลังสินค้า · สมใจ')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')

@@ -3,8 +3,8 @@
 const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, '../apps-script'), out = path.join(__dirname, '../dist');
 // Main ก่อน — ให้ setup เป็นฟังก์ชันแรกในช่อง "เรียกใช้" ของ Apps Script
-const gs = ['Main', 'Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api', 'Files', 'Notify'];
-const html = ['Index', 'Css', 'App', 'Sheet', 'Form', 'Po', 'PdfView', 'Act'];
+const gs = ['Main', 'Logic', 'Seed', 'Db', 'Maps', 'Auth', 'Api', 'Files', 'Notify', 'Confirm'];
+const html = ['Index', 'Css', 'App', 'Sheet', 'Form', 'Po', 'PdfView', 'Act', 'ConfirmPage'];
 const head = '/**\n * ระบบขอคิวรถคลังสินค้า · สมใจ — ไฟล์รวม (สร้างอัตโนมัติจาก truck-queue/apps-script ห้ามแก้ไฟล์นี้โดยตรง)\n' +
   ' * วางทั้งไฟล์แทน Code.gs ใน Apps Script แล้วทำตาม truck-queue/README.md\n */\n';
 const body = gs.map(n => '// ═════ ' + n + '.gs ═════\n' + fs.readFileSync(path.join(src, n + '.gs'), 'utf8')).join('\n');

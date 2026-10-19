@@ -515,13 +515,13 @@ function staffLogin() {
 
 function renderStaff() {
   var tabs = staff.role === 'wh'
-    ? [['board', 'งานส่ง'], ['approve', 'รออนุมัติ'], ['sheets', 'ใบงาน/ปิดรอบ'], ['names', 'รายชื่อใหม่']]
+    ? [['board', 'งานส่ง'], ['approve', 'รออนุมัติ'], ['confirm', 'แจ้งสาขา'], ['sheets', 'ใบงาน/ปิดรอบ'], ['names', 'รายชื่อใหม่']]
     : [['approve', 'รออนุมัติ']];
   if (!tabs.some(function (t) { return t[0] === view; })) view = tabs[0][0];
   $('#app').innerHTML = '<div class="tabs">' + tabs.map(function (t) {
     return '<button data-v="' + t[0] + '" class="' + (t[0] === view ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div><div id="pane"></div>';
   $('#app').querySelectorAll('.tabs button').forEach(function (b) { b.onclick = function () { view = b.dataset.v; render(); }; });
-  ({ board: renderBoard, approve: renderApprove, sheets: renderSheets, names: renderNames })[view]();
+  ({ board: renderBoard, approve: renderApprove, sheets: renderSheets, names: renderNames, confirm: renderConfirm })[view]();
 }
 
 /** แนบใบสั่งซื้อเพิ่มให้คำขอที่ส่งไปแล้ว */
@@ -742,6 +742,63 @@ function costForm(r, trucks, mode) {
     call('decide', 'wh', staff.pin, staff.actor, r.id, true, e.reason.value.trim(), { date: e.date.value, plate: e.plate.value, cost: read() })
       .then(function () { m.hidden = true; toast('อนุมัติฝั่งคลังแล้ว ส่งต่อ CEO → COO'); renderApprove(); }).catch(staffFail);
   };
+}
+
+/** แจ้งสาขา: รายงานยืนยันรอบส่งล่วงหน้า 1 วัน (อีเมล หรือคัดลอกไปวาง LINE) */
+var confirmDate = null;
+function renderConfirm() {
+  confirmDate = confirmDate || addDays_(B.today, 1);
+  var pane = $('#pane');
+  pane.innerHTML = '<div class="note info small">ส่งยืนยันให้สาขาก่อนวันส่ง 1 วัน (หลังยืนยันงานครบ ก่อน 16:00 น.) · สาขาที่มีอีเมลในชีต "อีเมลแจ้งเตือน" กดส่งอีเมลได้ · ใช้ LINE ให้กด "คัดลอกข้อความ" แล้ววางในกลุ่มสาขา</div>' +
+    '<label>วันส่ง</label><input type="date" id="cd" value="' + confirmDate + '"><div id="clist"><p class="muted center">กำลังโหลด…</p></div>';
+  $('#cd').onchange = function () { confirmDate = this.value; renderConfirm(); };
+  call('confirmReport', staff.pin, confirmDate).then(function (list) {
+    if (!list.length) { $('#clist').innerHTML = '<p class="muted center">ไม่มีงานส่งในวันนี้</p>'; return; }
+    var ready = list.filter(function (b) { return b.emails.length && b.confirmed === b.total; });
+    $('#clist').innerHTML = (ready.length ? '<button class="btn block" id="sendAll">ส่งอีเมลทุกสาขาที่ยืนยันครบ (' + ready.length + ' สาขา)</button>' : '') +
+      list.map(function (b) {
+        var pend = b.total - b.confirmed;
+        return '<div class="card"><div class="item"><div><div class="title">' + esc(b.branchName) + ' <span class="muted small">(' + esc(b.code) + ')</span></div>' +
+          '<div class="small muted">' + b.total + ' รายการ · ยืนยันแล้ว ' + b.confirmed + (pend ? ' · <b style="color:var(--warn)">ยังไม่ยืนยัน ' + pend + '</b>' : '') + '</div>' +
+          '<div class="small muted">' + (b.emails.length ? 'อีเมล: ' + esc(b.emails.join(', ')) : 'ยังไม่มีอีเมลสาขา (ใช้ LINE ได้)') + '</div>' +
+          (b.lastSent ? '<div class="small" style="color:var(--green)">ส่งอีเมลแล้ว ' + esc(b.lastSent) + '</div>' : '') + '</div>' +
+          (pend ? '<span class="badge warn">ยืนยันยังไม่ครบ</span>' : '<span class="badge ok">พร้อมแจ้ง</span>') + '</div>' +
+          '<div class="actions">' + (b.emails.length ? '<button class="btn small" data-send="' + esc(b.code) + '">ส่งอีเมล</button>' : '') +
+          '<button class="btn small ghost" data-copy="' + esc(b.code) + '">คัดลอกข้อความ (LINE)</button>' +
+          '<a class="btn small ghost" target="_blank" href="' + esc(b.url) + '">เปิดรายงาน</a></div></div>';
+      }).join('');
+    var byCode = {};
+    list.forEach(function (b) { byCode[b.code] = b; });
+    var send = function (codes, btn) {
+      var warn = codes.filter(function (c) { return byCode[c].confirmed < byCode[c].total; });
+      if (warn.length && !confirm('สาขา ' + warn.map(function (c) { return byCode[c].branchName; }).join(', ') + ' ยังยืนยันไม่ครบ ส่งเลยไหม?')) return;
+      btn.disabled = true;
+      call('sendBranchConfirm', staff.pin, staff.actor, confirmDate, codes).then(function (res) {
+        var ok = res.filter(function (x) { return x.ok; }).length, bad = res.filter(function (x) { return !x.ok; });
+        toast('ส่งอีเมลแล้ว ' + ok + ' สาขา' + (bad.length ? ' · ไม่สำเร็จ: ' + bad.map(function (x) { return byCode[x.code].branchName + ' (' + x.why + ')'; }).join(', ') : ''), !!bad.length);
+        renderConfirm();
+      }).catch(function (e) { btn.disabled = false; staffFail(e); });
+    };
+    $('#clist').querySelectorAll('[data-send]').forEach(function (b) { b.onclick = function () { send([b.dataset.send], b); }; });
+    if ($('#sendAll')) $('#sendAll').onclick = function () { send(ready.map(function (b) { return b.code; }), this); };
+    $('#clist').querySelectorAll('[data-copy]').forEach(function (b) {
+      b.onclick = function () {
+        var text = byCode[b.dataset.copy].text;
+        var done = function () { toast('คัดลอกแล้ว · วางในกลุ่ม LINE ของสาขาได้เลย'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { showText(text); });
+        else showText(text);
+      };
+    });
+  }).catch(staffFail);
+}
+/** คัดลอกอัตโนมัติไม่ได้ (บางเบราว์เซอร์) → แสดงข้อความให้กดค้างคัดลอกเอง */
+function showText(text) {
+  var m = $('#modal');
+  m.innerHTML = '<div class="sheet"><h2>ข้อความแจ้งสาขา</h2><p class="small muted">กดค้างเพื่อคัดลอก แล้ววางใน LINE</p><textarea style="min-height:240px" readonly>' + esc(text) +
+    '</textarea><button class="btn block ghost" data-x>ปิด</button></div>';
+  m.hidden = false;
+  $('textarea', m).select();
+  $('[data-x]', m).onclick = function () { m.hidden = true; };
 }
 
 var sheetDate = null;
