@@ -50,6 +50,7 @@ function makeEnv() {
   const places = {
     'https://maps.app.goo.gl/near': 'https://www.google.com/maps/place/A/@13.72,100.42,17z/data=!3d13.72!4d100.42',
     'https://maps.app.goo.gl/far': 'https://www.google.com/maps/place/B/@14.02,100.62,17z/data=!3d14.02!4d100.62',
+    'https://maps.app.goo.gl/rama9': 'https://www.google.com/maps/place/D/@13.751,100.571,17z/data=!3d13.751!4d100.571',
     'https://maps.app.goo.gl/korat': 'https://www.google.com/maps/place/C/data=!3d14.97!4d102.10'
   };
   const province = (lat) => lat > 14.5 ? 'นครราชสีมา' : lat > 13.9 ? 'ปทุมธานี' : 'กรุงเทพมหานคร';
@@ -580,4 +581,24 @@ test('ตารางที่ว่างรอบรถให้สาขา�
   assert.equal(wed[0].plate, 'ถศ 6598');                                  // รอบที่แวะสาขาตัวเองขึ้นก่อน
   assert.ok(wed.length > 1);                                             // มีรอบของรถคันอื่นให้ดูด้วย
   assert.deepEqual(mine[0].route, ['สายสี่']);
+});
+
+test('รอบมาตรฐานทุกสาย: ลูกค้าอยู่บนเส้นทางของสายอื่น เลือกรอบนั้นได้ · ตารางรอบประจำสัปดาห์', () => {
+  const S = ready();
+  // สาขาสายสี่ ขอส่งลูกค้าแถวพระราม 9 → เห็นรอบ จ./พฤ. ของ ถศ 6598 (พระราม 9 › เดอะไนน์) ด้วย
+  const q = J(S.quote({ branchCode: '00005', mapsUrl: 'https://maps.app.goo.gl/rama9', value: 5000 }));
+  const other = q.rounds.filter(r => !r.own);
+  assert.ok(other.some(r => r.date === '2026-10-22' && r.plate === 'ถศ 6598' && r.onRoute));
+  assert.ok(other.every(r => r.onRoute));                                // รอบสายอื่นต้องผ่านพื้นที่ลูกค้า
+  assert.ok(q.rounds.some(r => r.own && r.date === '2026-10-21'));       // รอบของสาขาตัวเองยังอยู่
+  const r = J(S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/rama9', value: 5000, date: '2026-10-22', plate: 'ถศ 6598' }));
+  assert.equal(r.status, 'รอยืนยัน');
+  // ลูกค้าใกล้สาขาตัวเอง ไม่เห็นรอบสายอื่นที่ไม่ผ่าน
+  assert.ok(J(S.quote({ branchCode: '00005', mapsUrl: base.mapsUrl, value: 5000 })).rounds.every(x => x.own));
+  // ตารางรอบประจำสัปดาห์
+  const t = J(S.slotTable('00005'));
+  assert.deepEqual(t.weekly.map(w => w.label), ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']);
+  const wed = t.weekly[2].rounds.find(x => x.plate === 'ถศ 6598');
+  assert.equal(wed.mine, true); assert.equal(wed.slots, 5);
+  assert.ok(t.weekly[0].rounds.length >= 4);                             // วันจันทร์มีรถทุกคัน
 });

@@ -82,15 +82,20 @@ function quote(q) {
   var value = Number(q.value) || 0;
 
   var rate = metro ? s.ratePer10Km : s.upcountryRatePer10Km;
+  // ทุกรอบมาตรฐาน: รอบที่แวะสาขาตัวเอง + รอบของสายอื่นที่ผ่านพื้นที่ลูกค้า (ฝากสินค้าพักที่โกดังก่อนวันส่ง)
   var rounds = !metro ? [] : bookableRounds_({
-    branchCode: branch.code, schedule: schedule_(), holidays: holidays_(),
+    branchCode: null, schedule: schedule_(), holidays: holidays_(),
     nowYmd: today_(), nowHour: nowHour_(), cutoffHour: s.cutoffHour,
     horizonDays: s.horizonDays, used: usedSlots_(requests_())
   }).map(function (r) {
     var onRoute = isOnRoute_(loc.lat, loc.lng, r.branches.map(function (c) { return bmap[c]; }), s.onRouteKm);
-    return { date: r.date, plate: r.plate, left: r.left, slots: r.slots, onRoute: onRoute,
+    var own = r.branches.indexOf(branch.code) !== -1;
+    return { date: r.date, plate: r.plate, left: r.left, slots: r.slots, onRoute: onRoute, own: own,
+      route: r.branches.map(function (c) { return (bmap[c] || {}).name || c; }),
       needsApproval: needsApproval_(value, onRoute, s.minValue), label: thaiDate_(r.date) };
-  });
+  }).filter(function (r) { return r.own || r.onRoute; })
+    .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (b.onRoute - a.onRoute) || (b.own - a.own); });
+
 
   var hol = holidays_();
   var urgentEarliest = earliestDate_(today_(), nowHour_(), s.cutoffHour);
@@ -262,7 +267,15 @@ function slotTable(branchCode) {
     }).sort(function (a, b) { return (b.mine - a.mine) || a.plate.localeCompare(b.plate); });
     days.push({ date: d, label: thaiDate_(d), rounds: rounds });
   }
-  return { branchName: (bmap[code] || {}).name || code, cutoffHour: s.cutoffHour, days: days };
+  // ตารางรอบรถประจำสัปดาห์ (ชุดที่ใช้อยู่วันนี้) — แบบเดียวกับแผนรอบรถของคลัง
+  var weekly = [1, 2, 3, 4, 5, 6].map(function (wd) {
+    return { weekday: wd, label: THAI_DAYS[wd], rounds: activeSchedule_(sched, start).filter(function (r) { return r.weekday === wd; })
+      .sort(function (a, b) { return a.plate.localeCompare(b.plate); }).map(function (r) {
+        return { plate: r.plate, driver: drivers[r.plate] || '', route: r.branches.map(function (c) { return (bmap[c] || {}).name || c; }),
+          slots: r.slots, mine: r.branches.indexOf(code) !== -1 };
+      }) };
+  });
+  return { branchName: (bmap[code] || {}).name || code, cutoffHour: s.cutoffHour, days: days, weekly: weekly };
 }
 
 /** คำขอของสาขา: ย้อนหลัง 30 วันและล่วงหน้า */

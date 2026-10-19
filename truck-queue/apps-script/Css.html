@@ -88,6 +88,12 @@
   .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--muted); margin-bottom: 4px; }
   .lg { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); margin-left: 6px; }
   .lg.ok { background: var(--green-soft); } .lg.warn { background: var(--warn-soft); } .lg.bad { background: var(--bad-soft); } .lg.none { background: #fff; } .lg.hol { background: #f1f1f1; }
+  .round small { display: block; } .round small.rt { font-size: 12px; margin: 2px 0 4px; }
+  .wk { display: grid; gap: 6px; }
+  .wk-d { display: grid; grid-template-columns: 34px 1fr; gap: 4px 8px; align-items: start; border-top: 1px solid var(--line); padding-top: 6px; }
+  .wk-h { font-weight: 700; color: var(--green); padding-top: 4px; } .wk-l { display: grid; gap: 4px; }
+  .wk-r { font-size: 14px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; }
+  .wk-r.mine { border-color: var(--green); background: var(--green-soft); }
   .thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
   .thumb { position: relative; width: 84px; height: 84px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }

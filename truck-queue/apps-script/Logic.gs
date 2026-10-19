@@ -144,7 +144,7 @@ function bookableRounds_(opts) {
     if (opts.holidays && opts.holidays[d]) continue;
     var wd = weekday_(d);
     activeSchedule_(opts.schedule, d).forEach(function (r) {
-      if (r.weekday !== wd || r.branches.indexOf(opts.branchCode) === -1) return;
+      if (r.weekday !== wd || (opts.branchCode && r.branches.indexOf(opts.branchCode) === -1)) return;
       var used = (opts.used && opts.used[slotKey_(d, r.plate)]) || 0;
       out.push({ date: d, plate: r.plate, branches: r.branches, slots: r.slots, used: used, left: r.slots - used });
     });

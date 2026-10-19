@@ -151,10 +151,22 @@ function render() {
 }
 
 /** ตารางที่ว่างรอบรถ: ดูก่อนรับปากลูกค้า · ค่าตั้งต้นเฉพาะรอบที่แวะสาขาตัวเอง */
-var slotsAll = false, slotsCal = true, slotSel = null, slotData = null;
+var slotsAll = true, slotsCal = true, slotSel = null, slotData = null;
 function renderSlots() {
   var pane = $('#pane'); pane.innerHTML = '<p class="muted center">กำลังโหลด…</p>';
   call('slotTable', me.branchCode).then(function (t) { slotData = t; slotSel = null; drawSlots(); }).catch(fail);
+}
+
+/** ตารางรอบรถประจำสัปดาห์ (แผนรอบรถมาตรฐาน) · รอบที่แวะสาขาตัวเองมีกรอบเขียว */
+function weeklyTable(t) {
+  if (!t.weekly) return '';
+  return '<h3 style="margin-top:20px">รอบรถประจำสัปดาห์</h3><p class="small muted">ส่งลูกค้าได้ตามเส้นทางของรอบ · รอบของสายอื่นต้องฝากสินค้าพักที่โกดังก่อนวันส่ง · ตัวเลข = จุดส่งลูกค้าต่อรอบ</p>' +
+    '<div class="wk">' + t.weekly.map(function (w) {
+      return '<div class="wk-d"><div class="wk-h">' + esc(w.label) + '</div><div class="wk-l">' + (w.rounds.length ? w.rounds.map(function (r) {
+        return '<div class="wk-r' + (r.mine ? ' mine' : '') + '"><b>' + esc(r.plate) + '</b> <span class="muted">' + esc(r.driver.split(' ')[0]) + ' · ' + r.slots + ' จุด</span>' +
+          '<div>' + esc(r.route.join(' › ')) + '</div></div>';
+      }).join('') : '<div class="muted small">ไม่มีรอบ</div>') + '</div></div>';
+    }).join('') + '</div>';
 }
 
 /** ปฏิทิน (ค่าตั้งต้น) หรือรายการ · ตัวเลขในช่อง = ที่ว่างรวมของรอบที่แสดง */
@@ -215,7 +227,7 @@ function drawSlots() {
     '<label><input type="radio" name="sv" value="0"' + (slotsCal ? '' : ' checked') + '><span>รายการ</span></label></div>' +
     '<div class="seg"><label><input type="radio" name="sa" value="0"' + (slotsAll ? '' : ' checked') + '><span>รอบที่แวะสาขา' + esc(t.branchName) + '</span></label>' +
     '<label><input type="radio" name="sa" value="1"' + (slotsAll ? ' checked' : '') + '><span>ทุกรอบ</span></label></div>' +
-    body + '<button class="btn block" id="toReq">ขอคิวส่งลูกค้า</button>';
+    body + weeklyTable(t) + '<button class="btn block" id="toReq">ขอคิวส่งลูกค้า</button>';
   pane.querySelectorAll('input[name=sa]').forEach(function (r) { r.onchange = function () { slotsAll = this.value === '1'; slotSel = null; drawSlots(); }; });
   pane.querySelectorAll('input[name=sv]').forEach(function (r) { r.onchange = function () { slotsCal = this.value === '1'; drawSlots(); }; });
   pane.querySelectorAll('.cal-c[data-d]').forEach(function (b) { b.onclick = function () { slotSel = b.dataset.d; drawSlots(); }; });
@@ -342,13 +354,16 @@ function renderQuote(f) {
     var soon = appr && r.date < Q.approvalEarliest;   // งานต้องอนุมัติ ต้องขอล่วงหน้าตามวันทำการ
     var on = pick && pick.date === r.date && pick.plate === r.plate && !soon;
     return '<button type="button" class="round' + (on ? ' on' : '') + '" data-i="' + i + '"' + (r.left <= 0 || soon ? ' disabled' : '') + '>' +
-      '<b>' + esc(r.label) + '</b><small>' + (r.left <= 0 ? 'เต็มแล้ว' : soon ? 'ต้องขอล่วงหน้า ' + Q.approvalLeadWorkDays + ' วันทำการ' : 'เหลือ ' + r.left + ' จุด') + '</small>' +
-      (appr ? '<br><span class="badge warn">ต้องอนุมัติ</span>' : r.onRoute ? '<br><span class="badge ok">อยู่บนเส้นทาง</span>' : '') + '</button>';
+      '<b>' + esc(r.label) + '</b><small>' + esc(r.plate) + ' · ' + (r.left <= 0 ? 'เต็มแล้ว' : soon ? 'ต้องขอล่วงหน้า ' + Q.approvalLeadWorkDays + ' วันทำการ' : 'เหลือ ' + r.left + ' จุด') + '</small>' +
+      '<small class="rt">' + esc((r.route || []).join(' › ')) + '</small>' +
+      (appr ? '<span class="badge warn">ต้องอนุมัติ</span>' : r.onRoute ? '<span class="badge ok">อยู่บนเส้นทาง</span>' : '') +
+      (r.own === false ? ' <span class="badge info">สายอื่น</span>' : '') + '</button>';
   }).join('') + '</div>';
   out += '<label class="check"><input type="checkbox" id="urgent"' + (pick && pick.urgent ? ' checked' : '') + '> นอกรอบ / ด่วน (คลังจัดรถเอง)</label>' +
     '<div id="udate"' + (pick && pick.urgent ? '' : ' hidden') + '><label>วันที่ต้องการส่ง' + (value < B.settings.minValue ? ' <span class="opt">(ยอดต่ำ ต้องอนุมัติ — ขอล่วงหน้า ' + Q.approvalLeadWorkDays + ' วันทำการ)</span>' : '') + '</label><input type="date" id="ud" min="' + (value < B.settings.minValue ? Q.approvalEarliest : Q.urgentEarliest) + '" value="' + (pick && pick.urgent ? pick.date : '') + '"></div>';
   var chosen = pick && !pick.urgent ? Q.rounds.filter(function (r) { return r.date === pick.date && r.plate === pick.plate; })[0] : null;
   var needAppr = pick && value < B.settings.minValue && !(chosen && chosen.onRoute);
+  if (chosen && chosen.own === false) out += '<div class="note info">รอบของสายอื่นที่ผ่านพื้นที่ลูกค้า — <b>ต้องนำสินค้ามาฝากพักที่โกดังก่อนวันส่ง</b> (รถไม่เข้าไปรับของที่สาขา)</div>';
   if (needAppr) out += '<div class="note warn">ยอดต่ำกว่า ' + money(B.settings.minValue) + ' บาทและอยู่นอกเส้นทาง — ต้องได้รับอนุมัติจาก ผจก.เขต → CEO และ คลัง → COO ก่อนส่ง</div>';
 
   out += '<h3>รายละเอียดเพิ่มเติม</h3>' +
