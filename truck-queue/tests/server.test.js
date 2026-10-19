@@ -564,3 +564,20 @@ test('รายงานยืนยันรอบส่งให้สาข�
   assert.equal(d.confirmed, 2);
   assert.throws(() => S.confirmReport('wrong', '2026-10-21'), /PIN/);
 });
+
+test('ตารางที่ว่างรอบรถให้สาขาดู', () => {
+  const S = ready();
+  S.submitRequest({ ...base, date: '2026-10-21', plate: 'ถศ 6598' });
+  S.submitRequest({ ...base, customer: 'ข', date: '2026-10-21', plate: 'ถศ 6598' });
+  S.__sheets['วันหยุด']._rows.push(['2026-10-23', 'วันปิยมหาราช']);
+  const t = J(S.slotTable('00005'));
+  assert.equal(t.days[0].date, '2026-10-20');                            // จ. 10:00 → จองได้ตั้งแต่พรุ่งนี้
+  assert.ok(!t.days.some(d => d.date === '2026-10-25'));                 // ไม่แสดงวันอาทิตย์
+  assert.equal(t.days.find(d => d.date === '2026-10-23').holiday, 'วันปิยมหาราช');
+  const wed = t.days.find(d => d.date === '2026-10-21').rounds;
+  const mine = wed.filter(r => r.mine);
+  assert.deepEqual(mine.map(r => [r.plate, r.slots, r.used, r.left]), [['ถศ 6598', 5, 2, 3]]);
+  assert.equal(wed[0].plate, 'ถศ 6598');                                  // รอบที่แวะสาขาตัวเองขึ้นก่อน
+  assert.ok(wed.length > 1);                                             // มีรอบของรถคันอื่นให้ดูด้วย
+  assert.deepEqual(mine[0].route, ['สายสี่']);
+});

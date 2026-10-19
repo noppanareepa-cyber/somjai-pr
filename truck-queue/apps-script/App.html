@@ -142,12 +142,41 @@ function render() {
   if (staff) return renderStaff();
   if (!me) return renderWho();
   var app = $('#app');
-  app.innerHTML = '<div class="tabs"><button data-v="request">ขอคิวส่งลูกค้า</button><button data-v="mine">คำขอของสาขา</button></div><div id="pane"></div>';
+  app.innerHTML = '<div class="tabs"><button data-v="request">ขอคิวส่งลูกค้า</button><button data-v="slots">ที่ว่างรอบรถ</button><button data-v="mine">คำขอของสาขา</button></div><div id="pane"></div>';
   app.querySelectorAll('.tabs button').forEach(function (b) {
     b.classList.toggle('on', b.dataset.v === view);
     b.onclick = function () { view = b.dataset.v; render(); };
   });
-  if (view === 'mine') renderMine(); else renderForm();
+  if (view === 'mine') renderMine(); else if (view === 'slots') renderSlots(); else renderForm();
+}
+
+/** ตารางที่ว่างรอบรถ: ดูก่อนรับปากลูกค้า · ค่าตั้งต้นเฉพาะรอบที่แวะสาขาตัวเอง */
+var slotsAll = false;
+function renderSlots() {
+  var pane = $('#pane'); pane.innerHTML = '<p class="muted center">กำลังโหลด…</p>';
+  call('slotTable', me.branchCode).then(function (t) {
+    var cell = function (r) {
+      var cls = r.left === 0 ? 'bad' : r.left === 1 ? 'warn' : 'ok';
+      return '<div class="slot' + (r.mine ? ' mine' : '') + '"><div class="slot-h"><b>' + esc(r.plate) + '</b> <span class="muted small">' + esc(r.driver) + '</span>' +
+        '<span class="badge ' + cls + '">' + (r.left === 0 ? 'เต็ม' : 'ว่าง ' + r.left + '/' + r.slots) + '</span></div>' +
+        '<div class="meter"><i class="' + cls + '" style="width:' + Math.round(r.used / r.slots * 100) + '%"></i></div>' +
+        '<div class="small muted">' + esc(r.route.join(' › ')) + '</div></div>';
+    };
+    var days = t.days.map(function (d) {
+      var rs = d.rounds.filter(function (r) { return slotsAll || r.mine; });
+      if (d.holiday) return '<div class="day"><h3>' + esc(d.label) + '</h3><div class="small muted">' + esc(d.holiday) + ' · ไม่มีรอบรถ</div></div>';
+      if (!rs.length) return '';
+      return '<div class="day"><h3>' + esc(d.label) + '</h3>' + rs.map(cell).join('') + '</div>';
+    }).join('');
+    pane.innerHTML = '<div class="note info small">ที่ว่างสำหรับส่งลูกค้าตามเส้นทางรถ · ขอก่อน ' + t.cutoffHour + ':00 น. จองได้ตั้งแต่วันแรกในตาราง · ' +
+      'ลูกค้าต้องอยู่ใกล้เส้นทางของรอบนั้น (ระบบตรวจให้ตอนขอคิว) · ตัวเลขเปลี่ยนตามคำขอล่าสุด ยังไม่ใช่การจอง</div>' +
+      '<div class="seg"><label><input type="radio" name="sa" value="0"' + (slotsAll ? '' : ' checked') + '><span>รอบที่แวะสาขา' + esc(t.branchName) + '</span></label>' +
+      '<label><input type="radio" name="sa" value="1"' + (slotsAll ? ' checked' : '') + '><span>ทุกรอบ</span></label></div>' +
+      (days || '<p class="muted center">ไม่มีรอบรถในช่วงนี้</p>') +
+      '<button class="btn block" id="toReq">ขอคิวส่งลูกค้า</button>';
+    pane.querySelectorAll('input[name=sa]').forEach(function (r) { r.onchange = function () { slotsAll = this.value === '1'; renderSlots(); }; });
+    $('#toReq').onclick = function () { view = 'request'; render(); };
+  }).catch(fail);
 }
 
 // ───────────────────────────── เลือกชื่อ ─────────────────────────────

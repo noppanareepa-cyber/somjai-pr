@@ -240,6 +240,31 @@ function submitUpcountry_(f, q, s, po) {
   });
 }
 
+/**
+ * ตารางที่ว่างในรอบรถ (ให้สาขาดูก่อนรับปากลูกค้า) — ตั้งแต่วันแรกที่จองได้ ไปอีก horizonDays วัน
+ * mine = รอบที่แวะสาขานี้ · ที่ว่างนับเหมือนตอนจอง (รอยืนยัน/รออนุมัติ/ยืนยันแล้ว กันที่ไว้)
+ */
+function slotTable(branchCode) {
+  var s = settings_(), code = padCode_(branchCode), bmap = branchMap_(), hol = holidays_(), sched = schedule_();
+  var used = usedSlots_(requests_());
+  var drivers = {};
+  trucks_().forEach(function (t) { drivers[t.plate] = t.driver; });
+  var start = earliestDate_(today_(), nowHour_(), s.cutoffHour);
+  var days = [];
+  for (var i = 0; i < (s.horizonDays || 14); i++) {
+    var d = addDays_(start, i), wd = weekday_(d);
+    if (wd === 0) continue;
+    if (hol[d]) { days.push({ date: d, label: thaiDate_(d), holiday: String(hol[d] === true ? 'วันหยุด' : hol[d]), rounds: [] }); continue; }
+    var rounds = activeSchedule_(sched, d).filter(function (r) { return r.weekday === wd; }).map(function (r) {
+      var u = used[slotKey_(d, r.plate)] || 0;
+      return { plate: r.plate, driver: drivers[r.plate] || '', route: r.branches.map(function (c) { return (bmap[c] || {}).name || c; }),
+        slots: r.slots, used: u, left: Math.max(0, r.slots - u), mine: r.branches.indexOf(code) !== -1 };
+    }).sort(function (a, b) { return (b.mine - a.mine) || a.plate.localeCompare(b.plate); });
+    days.push({ date: d, label: thaiDate_(d), rounds: rounds });
+  }
+  return { branchName: (bmap[code] || {}).name || code, cutoffHour: s.cutoffHour, days: days };
+}
+
 /** คำขอของสาขา: ย้อนหลัง 30 วันและล่วงหน้า */
 function branchRequests(branchCode) {
   var from = addDays_(today_(), -30);
