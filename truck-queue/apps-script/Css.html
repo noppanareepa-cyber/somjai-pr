@@ -74,6 +74,20 @@
   .slot-h { display: flex; align-items: center; gap: 6px; } .slot-h .badge { margin-left: auto; }
   .meter { height: 6px; background: var(--line); border-radius: 3px; margin: 6px 0 4px; overflow: hidden; }
   .meter i { display: block; height: 100%; background: var(--green); } .meter i.warn { background: var(--warn); } .meter i.bad { background: var(--bad); }
+  .cal { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 10px 0 6px; }
+  .cal-h { text-align: center; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .cal-c { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 58px; padding: 4px 2px; border-radius: 8px;
+    border: 1px solid var(--line); background: #fff; font: inherit; color: var(--ink); }
+  .cal-c .n { font-size: 13px; font-weight: 600; line-height: 1.2; } .cal-c .v { font-size: 12px; line-height: 1.2; margin-top: 2px; }
+  .cal-c.ok { background: var(--green-soft); } .cal-c.ok .v { color: var(--green); font-weight: 600; }
+  .cal-c.warn { background: var(--warn-soft); } .cal-c.warn .v { color: var(--warn); font-weight: 600; }
+  .cal-c.bad { background: var(--bad-soft); } .cal-c.bad .v { color: var(--bad); font-weight: 600; }
+  .cal-c.none .v, .cal-c.hol .v { color: var(--muted); } .cal-c.hol { background: #f1f1f1; }
+  .cal-c.past { background: transparent; border-style: dashed; opacity: .45; }
+  .cal-c.sel { outline: 3px solid var(--green); outline-offset: -1px; }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--muted); margin-bottom: 4px; }
+  .lg { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); margin-left: 6px; }
+  .lg.ok { background: var(--green-soft); } .lg.warn { background: var(--warn-soft); } .lg.bad { background: var(--bad-soft); } .lg.none { background: #fff; } .lg.hol { background: #f1f1f1; }
   .thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
   .thumb { position: relative; width: 84px; height: 84px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }

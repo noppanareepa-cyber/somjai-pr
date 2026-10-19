@@ -151,32 +151,75 @@ function render() {
 }
 
 /** ตารางที่ว่างรอบรถ: ดูก่อนรับปากลูกค้า · ค่าตั้งต้นเฉพาะรอบที่แวะสาขาตัวเอง */
-var slotsAll = false;
+var slotsAll = false, slotsCal = true, slotSel = null, slotData = null;
 function renderSlots() {
   var pane = $('#pane'); pane.innerHTML = '<p class="muted center">กำลังโหลด…</p>';
-  call('slotTable', me.branchCode).then(function (t) {
-    var cell = function (r) {
-      var cls = r.left === 0 ? 'bad' : r.left === 1 ? 'warn' : 'ok';
-      return '<div class="slot' + (r.mine ? ' mine' : '') + '"><div class="slot-h"><b>' + esc(r.plate) + '</b> <span class="muted small">' + esc(r.driver) + '</span>' +
-        '<span class="badge ' + cls + '">' + (r.left === 0 ? 'เต็ม' : 'ว่าง ' + r.left + '/' + r.slots) + '</span></div>' +
-        '<div class="meter"><i class="' + cls + '" style="width:' + Math.round(r.used / r.slots * 100) + '%"></i></div>' +
-        '<div class="small muted">' + esc(r.route.join(' › ')) + '</div></div>';
-    };
-    var days = t.days.map(function (d) {
-      var rs = d.rounds.filter(function (r) { return slotsAll || r.mine; });
-      if (d.holiday) return '<div class="day"><h3>' + esc(d.label) + '</h3><div class="small muted">' + esc(d.holiday) + ' · ไม่มีรอบรถ</div></div>';
-      if (!rs.length) return '';
-      return '<div class="day"><h3>' + esc(d.label) + '</h3>' + rs.map(cell).join('') + '</div>';
-    }).join('');
-    pane.innerHTML = '<div class="note info small">ที่ว่างสำหรับส่งลูกค้าตามเส้นทางรถ · ขอก่อน ' + t.cutoffHour + ':00 น. จองได้ตั้งแต่วันแรกในตาราง · ' +
-      'ลูกค้าต้องอยู่ใกล้เส้นทางของรอบนั้น (ระบบตรวจให้ตอนขอคิว) · ตัวเลขเปลี่ยนตามคำขอล่าสุด ยังไม่ใช่การจอง</div>' +
-      '<div class="seg"><label><input type="radio" name="sa" value="0"' + (slotsAll ? '' : ' checked') + '><span>รอบที่แวะสาขา' + esc(t.branchName) + '</span></label>' +
-      '<label><input type="radio" name="sa" value="1"' + (slotsAll ? ' checked' : '') + '><span>ทุกรอบ</span></label></div>' +
-      (days || '<p class="muted center">ไม่มีรอบรถในช่วงนี้</p>') +
-      '<button class="btn block" id="toReq">ขอคิวส่งลูกค้า</button>';
-    pane.querySelectorAll('input[name=sa]').forEach(function (r) { r.onchange = function () { slotsAll = this.value === '1'; renderSlots(); }; });
-    $('#toReq').onclick = function () { view = 'request'; render(); };
-  }).catch(fail);
+  call('slotTable', me.branchCode).then(function (t) { slotData = t; slotSel = null; drawSlots(); }).catch(fail);
+}
+
+/** ปฏิทิน (ค่าตั้งต้น) หรือรายการ · ตัวเลขในช่อง = ที่ว่างรวมของรอบที่แสดง */
+function drawSlots() {
+  var t = slotData, pane = $('#pane');
+  var byDate = {};
+  t.days.forEach(function (d) { byDate[d.date] = d; });
+  var shown = function (d) { return d ? d.rounds.filter(function (r) { return slotsAll || r.mine; }) : []; };
+  var cls = function (left) { return left === 0 ? 'bad' : left === 1 ? 'warn' : 'ok'; };
+  var card = function (r) {
+    return '<div class="slot' + (r.mine ? ' mine' : '') + '"><div class="slot-h"><b>' + esc(r.plate) + '</b> <span class="muted small">' + esc(r.driver) + '</span>' +
+      '<span class="badge ' + cls(r.left) + '">' + (r.left === 0 ? 'เต็ม' : 'ว่าง ' + r.left + '/' + r.slots) + '</span></div>' +
+      '<div class="meter"><i class="' + cls(r.left) + '" style="width:' + Math.round(r.used / r.slots * 100) + '%"></i></div>' +
+      '<div class="small muted">' + esc(r.route.join(' › ')) + '</div></div>';
+  };
+  var dayBlock = function (d) {
+    if (d.holiday) return '<div class="day"><h3>' + esc(d.label) + '</h3><div class="small muted">' + esc(d.holiday) + ' · ไม่มีรอบรถ</div></div>';
+    var rs = shown(d);
+    return '<div class="day"><h3>' + esc(d.label) + '</h3>' + (rs.length ? rs.map(card).join('') : '<div class="small muted">ไม่มีรอบ' + (slotsAll ? 'รถ' : 'ผ่านสาขา') + '</div>') + '</div>';
+  };
+  var body = '';
+  if (slotsCal && t.days.length) {
+    var first = t.days[0].date, last = t.days[t.days.length - 1].date;
+    var d = first; while (weekday_(d) !== 1) d = addDays_(d, -1);
+    var end = last; while (weekday_(end) !== 6) end = addDays_(end, 1);
+    if (!slotSel || !byDate[slotSel]) {
+      slotSel = (t.days.filter(function (x) { return shown(x).some(function (r) { return r.left > 0; }); })[0] || t.days[0]).date;
+    }
+    var mon = function (ymd) { return THAI_MONTHS[Number(ymd.slice(5, 7)) - 1]; };
+    var cells = '', lastMon = '';
+    for (; d <= end; d = addDays_(d, 1)) {
+      if (weekday_(d) === 0) continue;
+      var x = byDate[d], num = Number(d.slice(8));
+      if (d >= first && mon(d) !== lastMon) { num += ' ' + mon(d); lastMon = mon(d); }
+      var inner, c;
+      if (!x) { c = 'past'; inner = ''; }
+      else if (x.holiday) { c = 'hol'; inner = 'หยุด'; }
+      else {
+        var rs = shown(x);
+        if (!rs.length) { c = 'none'; inner = '–'; }
+        else {
+          var left = rs.reduce(function (a, r) { return a + r.left; }, 0);
+          c = cls(left); inner = left === 0 ? 'เต็ม' : 'ว่าง ' + left;
+        }
+      }
+      cells += '<button type="button" class="cal-c ' + c + (d === slotSel ? ' sel' : '') + '"' + (x ? ' data-d="' + d + '"' : ' disabled') + '>' +
+        '<span class="n">' + num + '</span><span class="v">' + inner + '</span></button>';
+    }
+    body = '<div class="cal"><div class="cal-h">จ</div><div class="cal-h">อ</div><div class="cal-h">พ</div><div class="cal-h">พฤ</div><div class="cal-h">ศ</div><div class="cal-h">ส</div>' + cells + '</div>' +
+      '<div class="legend small"><span class="lg ok"></span>ว่าง <span class="lg warn"></span>เหลือ 1 <span class="lg bad"></span>เต็ม <span class="lg none"></span>ไม่มีรอบ' + (slotsAll ? '' : 'ผ่านสาขา') + ' <span class="lg hol"></span>วันหยุด</div>' +
+      dayBlock(byDate[slotSel]);
+  } else {
+    body = t.days.map(function (x) { return x.holiday || shown(x).length ? dayBlock(x) : ''; }).join('') || '<p class="muted center">ไม่มีรอบรถในช่วงนี้</p>';
+  }
+  pane.innerHTML = '<div class="note info small">รถว่างเบื้องต้นสำหรับส่งลูกค้าตามเส้นทาง · ขอก่อน ' + t.cutoffHour + ':00 น. จองได้ตั้งแต่วันแรกที่กดได้ · ' +
+    'ลูกค้าต้องอยู่ใกล้เส้นทางของรอบนั้น (ระบบตรวจให้ตอนขอคิว) · ยังไม่ใช่การจอง</div>' +
+    '<div class="seg"><label><input type="radio" name="sv" value="1"' + (slotsCal ? ' checked' : '') + '><span>ปฏิทิน</span></label>' +
+    '<label><input type="radio" name="sv" value="0"' + (slotsCal ? '' : ' checked') + '><span>รายการ</span></label></div>' +
+    '<div class="seg"><label><input type="radio" name="sa" value="0"' + (slotsAll ? '' : ' checked') + '><span>รอบที่แวะสาขา' + esc(t.branchName) + '</span></label>' +
+    '<label><input type="radio" name="sa" value="1"' + (slotsAll ? ' checked' : '') + '><span>ทุกรอบ</span></label></div>' +
+    body + '<button class="btn block" id="toReq">ขอคิวส่งลูกค้า</button>';
+  pane.querySelectorAll('input[name=sa]').forEach(function (r) { r.onchange = function () { slotsAll = this.value === '1'; slotSel = null; drawSlots(); }; });
+  pane.querySelectorAll('input[name=sv]').forEach(function (r) { r.onchange = function () { slotsCal = this.value === '1'; drawSlots(); }; });
+  pane.querySelectorAll('.cal-c[data-d]').forEach(function (b) { b.onclick = function () { slotSel = b.dataset.d; drawSlots(); }; });
+  $('#toReq').onclick = function () { view = 'request'; render(); };
 }
 
 // ───────────────────────────── เลือกชื่อ ─────────────────────────────
