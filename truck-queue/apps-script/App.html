@@ -150,14 +150,14 @@ function render() {
   if (view === 'mine') renderMine(); else if (view === 'request') renderForm(); else { view = 'slots'; renderSlots(); }
 }
 
-/** ตารางที่ว่างรอบรถ: ดูก่อนรับปากลูกค้า · ค่าตั้งต้นเฉพาะรอบที่แวะสาขาตัวเอง */
+/** ตารางที่ว่างรอบรถ: ดูก่อนรับปากลูกค้า · ค่าตั้งต้นแสดงทุกรอบ */
 var slotsAll = true, slotsCal = true, slotSel = null, slotData = null;
 function renderSlots() {
   var pane = $('#pane'); pane.innerHTML = '<p class="muted center">กำลังโหลด…</p>';
   call('slotTable', me.branchCode).then(function (t) { slotData = t; slotSel = null; drawSlots(); }).catch(fail);
 }
 
-/** ตารางรอบรถประจำสัปดาห์ (แผนรอบรถมาตรฐาน) · รอบที่แวะสาขาตัวเองมีกรอบเขียว */
+/** ตารางรอบรถประจำสัปดาห์ (แผนรอบรถมาตรฐาน) · รอบส่งสินค้าของสาขาตัวเองมีกรอบเขียว */
 function weeklyTable(t) {
   if (!t.weekly) return '';
   return '<h3 style="margin-top:20px">รอบรถประจำสัปดาห์</h3><p class="small muted">ส่งลูกค้าได้ตามเส้นทางของรอบ · รอบของสายอื่นต้องฝากสินค้าพักที่โกดังก่อนวันส่ง · ตัวเลข = จุดส่งลูกค้าต่อรอบ</p>' +
@@ -185,7 +185,7 @@ function drawSlots() {
   var dayBlock = function (d) {
     if (d.holiday) return '<div class="day"><h3>' + esc(d.label) + '</h3><div class="small muted">' + esc(d.holiday) + ' · ไม่มีรอบรถ</div></div>';
     var rs = shown(d);
-    return '<div class="day"><h3>' + esc(d.label) + '</h3>' + (rs.length ? rs.map(card).join('') : '<div class="small muted">ไม่มีรอบ' + (slotsAll ? 'รถ' : 'ผ่านสาขา') + '</div>') + '</div>';
+    return '<div class="day"><h3>' + esc(d.label) + '</h3>' + (rs.length ? rs.map(card).join('') : '<div class="small muted">' + (slotsAll ? 'ไม่มีรอบรถ' : 'ไม่มีรอบส่งสินค้า' + esc(t.branchName)) + '</div>') + '</div>';
   };
   var body = '';
   if (slotsCal && t.days.length) {
@@ -216,7 +216,7 @@ function drawSlots() {
         '<span class="n">' + num + '</span><span class="v">' + inner + '</span></button>';
     }
     body = '<div class="cal"><div class="cal-h">จ</div><div class="cal-h">อ</div><div class="cal-h">พ</div><div class="cal-h">พฤ</div><div class="cal-h">ศ</div><div class="cal-h">ส</div>' + cells + '</div>' +
-      '<div class="legend small"><span class="lg ok"></span>ว่าง <span class="lg warn"></span>เหลือ 1 <span class="lg bad"></span>เต็ม <span class="lg none"></span>ไม่มีรอบ' + (slotsAll ? '' : 'ผ่านสาขา') + ' <span class="lg hol"></span>วันหยุด</div>' +
+      '<div class="legend small"><span class="lg ok"></span>ว่าง <span class="lg warn"></span>เหลือ 1 <span class="lg bad"></span>เต็ม <span class="lg none"></span>ไม่มีรอบ' + (slotsAll ? '' : 'ส่งสินค้า' + esc(t.branchName)) + ' <span class="lg hol"></span>วันหยุด</div>' +
       dayBlock(byDate[slotSel]);
   } else {
     body = t.days.map(function (x) { return x.holiday || shown(x).length ? dayBlock(x) : ''; }).join('') || '<p class="muted center">ไม่มีรอบรถในช่วงนี้</p>';
@@ -225,7 +225,7 @@ function drawSlots() {
     'ลูกค้าต้องอยู่ใกล้เส้นทางของรอบนั้น (ระบบตรวจให้ตอนขอคิว) · ยังไม่ใช่การจอง</div>' +
     '<div class="seg"><label><input type="radio" name="sv" value="1"' + (slotsCal ? ' checked' : '') + '><span>ปฏิทิน</span></label>' +
     '<label><input type="radio" name="sv" value="0"' + (slotsCal ? '' : ' checked') + '><span>รายการ</span></label></div>' +
-    '<div class="seg"><label><input type="radio" name="sa" value="0"' + (slotsAll ? '' : ' checked') + '><span>รอบที่แวะสาขา' + esc(t.branchName) + '</span></label>' +
+    '<div class="seg"><label><input type="radio" name="sa" value="0"' + (slotsAll ? '' : ' checked') + '><span>รอบส่งสินค้า' + esc(t.branchName) + '</span></label>' +
     '<label><input type="radio" name="sa" value="1"' + (slotsAll ? ' checked' : '') + '><span>ทุกรอบ</span></label></div>' +
     body + weeklyTable(t) + '<button class="btn block" id="toReq">ขอคิวส่งลูกค้า</button>';
   pane.querySelectorAll('input[name=sa]').forEach(function (r) { r.onchange = function () { slotsAll = this.value === '1'; slotSel = null; drawSlots(); }; });
