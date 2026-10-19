@@ -167,6 +167,7 @@ function submitRequest(f) {
     };
     rec.poFiles = po.length ? JSON.stringify(storePoFiles_(rec.id, po)) : '';
     append_(SHEET.REQ, rec);
+    if (needsApproval) notifyNext_(rec, null);
     log_(rec.id, requester, 'ส่งคำขอ', thaiDate_(date) + (plate ? ' · ' + plate : ' · นอกรอบ/ด่วน') +
       (needsApproval ? ' · ต้องอนุมัติ' : ''));
     return { id: rec.id, status: rec.status, date: date, dateLabel: thaiDate_(date) };
@@ -233,6 +234,7 @@ function submitUpcountry_(f, q, s, po) {
     };
     rec.poFiles = po && po.length ? JSON.stringify(storePoFiles_(rec.id, po)) : '';
     append_(SHEET.REQ, rec);
+    notifyNext_(rec, null);
     log_(rec.id, requester, 'ขอรอบรถต่างจังหวัด', 'ผู้ขอ ' + bm + ' · ' + q.province + ' · ' + q.distanceKm + ' กม. · เสนอวัน ' + thaiDate_(date));
     return { id: rec.id, status: rec.status, date: date, dateLabel: thaiDate_(date) };
   });
@@ -543,7 +545,7 @@ function decideCore_(role, actor, id, approve, reason, round, via) {
     r.updatedAt = nowStr_(); r.updatedBy = actor;
     writeRow_(SHEET.REQ, r);
     log_(id, actor, ROLES[role] + (approve ? ' อนุมัติ' : ' ไม่อนุมัติ') + (via || ''), reason);
-    notifyExecs_(r, before);
+    notifyNext_(r, before);
     return fullView_(r);
   });
 }

@@ -40,6 +40,13 @@ function setup() {
     return { effectiveFrom: r.effectiveFrom, plate: r.plate, weekday: r.weekday, branches: r.branches.join(','), slots: r.slots };
   }));
   var now = nowStr_();
+  var st = settings_();
+  seedIfEmpty_(SHEET.MAIL, branches_().reduce(function (a, b) {
+    if (b.zoneManager && a.indexOf(b.zoneManager) === -1) a.push(b.zoneManager);
+    return a;
+  }, []).map(function (n) { return { group: ROLES.zone, name: n, email: '' }; })
+    .concat(seedWarehouseStaff_().map(function (n) { return { group: ROLES.wh, name: n, email: '' }; }))
+    .concat([{ group: ROLES.ceo, name: st.ceoName, email: st.ceoEmail || '' }, { group: ROLES.coo, name: st.cooName, email: st.cooEmail || '' }]));
   seedIfEmpty_(SHEET.STAFF, seedSalesStaff_().map(function (s) {
     return { name: s[0], branchCode: s[1], role: 'ขาย', status: 'ใช้งาน', createdAt: now };
   }).concat(seedWarehouseStaff_().map(function (n) {

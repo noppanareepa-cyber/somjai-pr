@@ -16,7 +16,8 @@ var SHEET = {
   SCHED: 'ตารางรอบรถ',
   HOLIDAY: 'วันหยุด',
   TIER: 'ค่าส่ง',
-  SETTING: 'ตั้งค่า'
+  SETTING: 'ตั้งค่า',
+  MAIL: 'อีเมลแจ้งเตือน'
 };
 
 /** [คีย์, หัวคอลัมน์ในชีต] */
@@ -54,6 +55,7 @@ COLS[SHEET.SCHED] = [
 COLS[SHEET.HOLIDAY] = [['date', 'วันที่ (yyyy-mm-dd)'], ['name', 'วันหยุด']];
 COLS[SHEET.TIER] = [['minValue', 'ยอดซื้อตั้งแต่ (บาท)'], ['freeKm', 'ส่งฟรี (กม.)']];
 COLS[SHEET.SETTING] = [['key', 'ค่า'], ['value', 'ตั้งเป็น'], ['note', 'คำอธิบาย']];
+COLS[SHEET.MAIL] = [['group', 'กลุ่ม (ผจก.เขต / คลัง / CEO / COO)'], ['name', 'ชื่อ (ผจก.เขต ต้องตรงกับชีต สาขา)'], ['email', 'อีเมล (ว่าง = ไม่ส่ง · ใช้ Gmail ได้)']];
 
 var DEFAULT_SETTINGS = [
   ['cutoffHour', 16, 'หลังเวลานี้ (ชั่วโมง) จองวันพรุ่งนี้ไม่ได้ · ใช้เป็นเวลาเลื่อนงานที่อนุมัติไม่ครบด้วย'],

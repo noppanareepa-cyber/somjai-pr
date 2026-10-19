@@ -473,3 +473,34 @@ test('ไม่ใส่อีเมล = ไม่ส่ง', () => {
   S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
   assert.equal(S.__mails.length, 0);
 });
+
+test('อีเมลแจ้ง ผจก.เขต (เฉพาะเขตตัวเอง) และคลัง · ผจก.เขต อนุมัติจากอีเมลได้', () => {
+  const S = ready();
+  const mail = S.__sheets['อีเมลแจ้งเตือน']._rows;
+  assert.ok(mail.some(x => x[0] === 'ผจก.เขต' && x[1] === 'อธินันท์ วีระจิตต์ (อัฐ)'));   // setup ใส่รายชื่อไว้ให้
+  assert.ok(mail.some(x => x[0] === 'คลัง' && x[1] === 'จรินทร มีเจริญ'));
+  const setMail = (name, email) => { mail.find(x => x[1] === name)[2] = email; };
+  setMail('อธินันท์ วีระจิตต์ (อัฐ)', 'att@gmail.com');
+  setMail('อนุชา ชัยนิวัติ (โจ้)', 'joe@gmail.com');
+  setMail('จรินทร มีเจริญ', 'jarin@gmail.com');
+  setMail('ชาญวิทย์ สีสะอาด', 'chanwit@gmail.com');
+  const r = S.submitRequest(korat);
+  assert.deepEqual(S.__mails.map(m => m.to), ['att@gmail.com']);        // เขตของสายสี่เท่านั้น
+  const link = S.__mails[0].htmlBody.match(/href="([^"]*view=act[^"]*a=1)"/)[1].replace(/&#38;/g, '&');
+  const p = Object.fromEntries(new URL(link).searchParams);
+  assert.equal(p.r, 'zone');
+  S.emailDecide(p.id, p.r, p.e, p.t, true, '');
+  const row = S.findRequest_(r.id);
+  assert.match(row.apprZone, /^อนุมัติ: อธินันท์ วีระจิตต์ \(อัฐ\)/);
+  assert.equal(S.__mails[1].to, 'jarin@gmail.com,chanwit@gmail.com');   // ต่อไปถึงคิวคลัง
+  assert.match(S.__mails[1].subject, /^\[รอคลัง\]/);
+  assert.doesNotMatch(S.__mails[1].htmlBody, /view=act/);               // คลังไม่มีปุ่มอนุมัติในอีเมล
+  // ยอดต่ำนอกเส้นทาง: ผจก.เขต และคลังได้พร้อมกันตอนส่งคำขอ
+  S.__mails.length = 0;
+  S.submitRequest({ ...base, mapsUrl: 'https://maps.app.goo.gl/far', value: 2000, feeCharged: '', date: '2026-10-24', plate: 'บห 1782' });
+  assert.deepEqual(S.__mails.map(m => m.to).sort(), ['att@gmail.com', 'jarin@gmail.com,chanwit@gmail.com']);
+  // งานปกติ ไม่ส่งอีเมล
+  S.__mails.length = 0;
+  S.submitRequest({ ...base, date: '2026-10-21', plate: 'ถศ 6598' });
+  assert.equal(S.__mails.length, 0);
+});
