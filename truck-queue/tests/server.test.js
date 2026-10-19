@@ -448,7 +448,8 @@ test('อีเมลถึง CEO/COO เมื่อถึงคิว แล�
   assert.equal(S.__mails.length, 1);
   const m = S.__mails[0];
   assert.equal(m.to, 'ceo@somjai.co.th');
-  assert.match(m.htmlBody, /เหลือ 1,576 บาท/);                          // กำไร 4,000 + ค่าส่ง 2,340 − ค่าขนส่ง 4,764
+  assert.match(m.htmlBody, /คำขอจากสาขา/);                              // CEO เห็นจุดเน้นคำขอของสาขา
+  assert.match(m.htmlBody, /✗ ไม่ผ่านเกณฑ์ · กำไรขั้นต้น 4,000 บาท = 84% ของค่าขนส่ง 4,764 บาท .*อย่างน้อย 7,146 บาท/);   // ต้อง ≥ 1.5 เท่า
   const link = m.htmlBody.match(/href="([^"]*view=act[^"]*a=1)"/)[1].replace(/&#38;/g, '&');
   const p = Object.fromEntries(new URL(link).searchParams);
   // ลิงก์ปลอม / ตำแหน่งไม่ตรง ใช้ไม่ได้
@@ -458,6 +459,9 @@ test('อีเมลถึง CEO/COO เมื่อถึงคิว แล�
   assert.equal(S.emailDecide(p.id, 'ceo', p.e, p.t, true, '').status, 'รออนุมัติ');
   assert.equal(S.__mails.length, 2);                                     // ต่อไปถึงคิว COO
   assert.equal(S.__mails[1].to, 'coo@somjai.co.th');
+  assert.match(S.__mails[1].htmlBody, /อนุมัติขั้นสุดท้าย/);              // COO เห็นจุดเน้นค่าใช้จ่าย
+  assert.match(S.__mails[1].htmlBody, /ค่าน้ำมัน.*1,984 บาท/);
+  assert.match(S.__mails[1].htmlBody, />CEO<.*อนุมัติ/);
   assert.throws(() => S.emailDecide(p.id, 'ceo', p.e, p.t, true, ''), /อนุมัติไปแล้ว/);   // กดซ้ำไม่ได้
   const log = S.__sheets['ประวัติการแก้ไข']._rows.filter(x => x[1] === r.id).map(x => x[3]);
   assert.ok(log.includes('CEO อนุมัติ (ลิงก์อีเมล)'));
@@ -626,4 +630,18 @@ test('โหมดทดสอบ: ทุกสาขาขอคิวได้
   assert.ok(!S.__sheets['ประวัติการแก้ไข']._rows.some(r => r[1] === t1.id || r[1] === t2.id));
   assert.equal(Object.keys(S.__drive.files).length, 0);                  // ไฟล์ใบสั่งซื้อทดสอบถูกลบ
   assert.equal(J(S.branchRequests('00005')).length, 1);
+});
+
+test('เกณฑ์กำไรขั้นต้นมากกว่าค่าใช้จ่าย 50% (ปรับได้ที่ gpCostRatio)', () => {
+  const S = ready();
+  const r = S.submitRequest({ ...korat, grossProfit: 8000 });
+  S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
+  S.decide('wh', 'klangsk', 'จรินทร มีเจริญ', r.id, true, '', { date: '2026-10-26', plate: 'บห 1782', cost: { roundTripKm: 496, kmPerLiter: 8, fuelPrice: 32, labor: 300 } });
+  let c = J(S.gpCheck_(S.findRequest_(r.id)));
+  assert.deepEqual([c.ok, c.cost, c.need], [true, 4764, 7146]);        // 8,000 ≥ 4,764 × 1.5
+  const ceo = J(S.approvals('ceo', 'ceoppp', 'CEO'))[0].summary;
+  assert.equal(ceo.good, true); assert.match(ceo.verdict, /^✓ ผ่านเกณฑ์/);
+  S.__sheets['ตั้งค่า']._rows.find(x => x[0] === 'gpCostRatio')[1] = 2;
+  c = J(S.gpCheck_(S.findRequest_(r.id)));
+  assert.deepEqual([c.ok, c.need], [false, 9528]);
 });

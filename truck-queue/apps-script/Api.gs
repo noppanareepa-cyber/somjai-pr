@@ -38,7 +38,7 @@ function getBootstrap() {
     today: today_(),
     settings: { cutoffHour: s.cutoffHour, ratePer10Km: s.ratePer10Km, minValue: s.minValue, tiers: tiers_(),
       upcountryRatePer10Km: s.upcountryRatePer10Km, kmPerLiter: s.kmPerLiter, fuelPrice: s.fuelPrice,
-      depreciationPerKm: s.depreciationPerKm, upcountryLeadWorkDays: s.upcountryLeadWorkDays, approvalLeadWorkDays: s.approvalLeadWorkDays,
+      depreciationPerKm: s.depreciationPerKm, gpCostRatio: s.gpCostRatio, upcountryLeadWorkDays: s.upcountryLeadWorkDays, approvalLeadWorkDays: s.approvalLeadWorkDays,
       testMode: isTestMode_(s) },
     branches: branches.filter(function (b) { return b.status === 'เปิด'; })
       .sort(function (a, b) { return a.code < b.code ? -1 : a.code > b.code ? 1 : 0; }).map(function (b) {
@@ -514,7 +514,7 @@ function approvals(role, pin, actor) {
     if (!approvalStepFor_(role, apprOf_(r), r.kind === KIND_UP)) return false;
     if (role === 'zone') return (bmap[String(r.branchCode)] || {}).zoneManager === actor;
     return true;
-  }).map(fullView_);
+  }).map(function (r) { var v = fullView_(r); v.summary = decisionSummary_(r, role); return v; });
 }
 
 /** ลิงก์ใบแจ้งขอรอบรถต่างจังหวัด (พิมพ์เก็บแฟ้ม) — มีโทเคนผูกกับเลขคิว */

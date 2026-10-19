@@ -74,6 +74,7 @@ var DEFAULT_SETTINGS = [
   ['kmPerLiter', 8, 'อัตราสิ้นเปลืองน้ำมันตั้งต้น (กม./ลิตร)'],
   ['fuelPrice', 33, 'ราคาน้ำมันตั้งต้น (บาท/ลิตร)'],
   ['depreciationPerKm', 5, 'ค่าเสื่อมรถ (บาท/กม.)'],
+  ['gpCostRatio', 1.5, 'งานต่างจังหวัด: กำไรขั้นต้นต้องไม่น้อยกว่า ค่าขนส่งที่คลังประเมิน × ค่านี้ (1.5 = กำไรมากกว่าค่าใช้จ่าย 50%)'],
   ['testMode', 'ไม่', 'ใช่ = ช่วงทดลองใช้: ทุกสาขาขอคิวได้ คำขอติดป้าย "ทดสอบ" และล้างทิ้งได้จากเมนู ระบบขอคิวรถ → ล้างข้อมูลทดสอบ · ใช้งานจริงให้เปลี่ยนเป็น ไม่'],
   ['ceoEmail', '', 'อีเมล CEO — ใส่แล้วระบบส่งอีเมลพร้อมปุ่มอนุมัติเมื่อถึงคิว CEO (เว้นว่าง = ไม่ส่ง)'],
   ['cooEmail', '', 'อีเมล COO — ใส่แล้วระบบส่งอีเมลพร้อมปุ่มอนุมัติเมื่อถึงคิว COO (เว้นว่าง = ไม่ส่ง)']
@@ -122,7 +123,7 @@ function settings_() {
   var s = {};
   readAll_(SHEET.SETTING).forEach(function (r) { s[r.key] = r.value; });
   DEFAULT_SETTINGS.forEach(function (d) { if (s[d[0]] === undefined || s[d[0]] === '') s[d[0]] = d[1]; });
-  ['cutoffHour', 'ratePer10Km', 'minValue', 'onRouteKm', 'horizonDays', 'upcountryRatePer10Km', 'upcountryLeadWorkDays', 'approvalLeadWorkDays',
+  ['cutoffHour', 'ratePer10Km', 'minValue', 'onRouteKm', 'horizonDays', 'upcountryRatePer10Km', 'upcountryLeadWorkDays', 'approvalLeadWorkDays', 'gpCostRatio',
     'kmPerLiter', 'fuelPrice', 'depreciationPerKm'].forEach(function (k) { s[k] = Number(s[k]); });
   return s;
 }

@@ -46,29 +46,69 @@ function actUrl_(id, role, exp, approve) {
     '&t=' + actToken_(id, role, exp) + '&a=' + (approve ? '1' : '0');
 }
 
-/** ตัวเลขที่ผู้บริหารใช้ตัดสินใจ */
-function decisionSummary_(r) {
+/** เกณฑ์งานต่างจังหวัด: กำไรขั้นต้น ≥ ค่าขนส่ง × gpCostRatio (1.5 = มากกว่าค่าใช้จ่าย 50%) */
+function gpCheck_(r) {
+  var cost = Number(r.costTotal) || 0, gp = Number(r.grossProfit) || 0;
+  if (r.kind !== KIND_UP || !cost) return null;
+  var ratio = Number(settings_().gpCostRatio) || 1.5, need = Math.ceil(cost * ratio);
+  return { ok: gp >= need, gp: gp, cost: cost, need: need, ratio: ratio, pct: Math.round((ratio - 1) * 100),
+    gpPctOfCost: Math.round(gp / cost * 100), gap: gp - need };
+}
+
+/**
+ * ตัวเลขที่ผู้บริหารใช้ตัดสินใจ — role เปลี่ยนจุดเน้น
+ * zone / ceo: คำขอจากสาขา (ยอดขาย กำไร ค่าส่ง ใบสั่งซื้อ) · coo: ค่าใช้จ่ายขนส่ง (อนุมัติขั้นสุดท้าย)
+ */
+function decisionSummary_(r, role) {
   var up = r.kind === KIND_UP;
   var n = function (v) { return Number(v) || 0; };
-  var rows = [
-    ['เลขคิว', r.id], ['สาขา', r.branchName + (r.branchManager ? ' · ผู้ขอ ' + r.branchManager : ' · ' + r.requester)],
-    ['ลูกค้า', r.customer + ' · ' + (r.province || '')], ['วันส่ง', thaiDate_(String(r.date)) + (r.plate ? ' · ' + r.plate : '')],
-    ['ยอดขาย (ก่อน VAT)', money_(r.value) + ' บาท'], ['ระยะทาง', (r.distanceKm || '-') + ' กม. จากสาขา']
-  ];
-  var verdict = '';
-  if (up) {
-    var cost = n(r.costTotal), gp = n(r.grossProfit), fee = r.collectFee === false ? 0 : n(r.feeCharged);
-    var net = gp + fee - cost;
-    var c = {}; try { c = r.cost ? JSON.parse(r.cost) : {}; } catch (e) { c = {}; }
-    rows.push(['กำไรขั้นต้น', money_(gp) + ' บาท' + (r.grossProfitPct !== '' ? ' (' + r.grossProfitPct + '%)' : '')]);
-    rows.push(['ค่าส่งที่เก็บลูกค้า', r.collectFee === false ? 'ไม่เก็บ' : money_(fee) + ' บาท']);
-    rows.push(['ค่าขนส่งที่คลังประเมิน', cost ? money_(cost) + ' บาท' + (c.roundTripKm ? ' (ไป-กลับ ' + c.roundTripKm + ' กม.)' : '') : 'คลังยังไม่ประเมิน']);
-    if (c.privateCost) rows.push(['ถ้าใช้ขนส่งเอกชน', money_(c.privateCost) + ' บาท' + (c.privateCost < cost ? ' (ถูกกว่า)' : '')]);
-    if (cost) verdict = 'กำไรขั้นต้น + ค่าส่งที่เก็บ − ค่าขนส่ง = ' + (net >= 0 ? 'เหลือ ' : 'ขาด ') + money_(Math.abs(net)) + ' บาท';
-    return { rows: rows, verdict: verdict, good: net >= 0, kind: 'ส่งลูกค้าต่างจังหวัด' };
+  var b = function (v) { return money_(v) + ' บาท'; };
+  var c = {}; try { c = r.cost ? JSON.parse(r.cost) : {}; } catch (e) { c = {}; }
+  var cost = n(r.costTotal), gp = n(r.grossProfit), fee = r.collectFee === false ? 0 : n(r.feeCharged);
+  var chk = gpCheck_(r);
+  var verdict = '', good = true;
+  if (up && chk) {
+    good = chk.ok;
+    verdict = (chk.ok ? '✓ ผ่านเกณฑ์' : '✗ ไม่ผ่านเกณฑ์') + ' · กำไรขั้นต้น ' + b(chk.gp) + ' = ' + chk.gpPctOfCost + '% ของค่าขนส่ง ' + b(chk.cost) +
+      ' (เกณฑ์: กำไรต้องมากกว่าค่าใช้จ่าย ' + chk.pct + '% คืออย่างน้อย ' + b(chk.need) + (chk.ok ? '' : ' · ขาดอีก ' + b(-chk.gap)) + ')';
+  } else if (up) {
+    verdict = 'คลังยังไม่ประเมินค่าขนส่ง';
   }
-  rows.push(['ค่าส่ง', 'นโยบาย ' + money_(r.feePolicy) + ' · เก็บ ' + money_(r.feeCharged) + ' บาท' + (r.feeReason ? ' (' + r.feeReason + ')' : '')]);
-  return { rows: rows, verdict: 'ยอดต่ำกว่าเกณฑ์และอยู่นอกเส้นทางรถ', good: true, kind: 'ยอดต่ำนอกเส้นทาง (กรุงเทพฯ/ปริมณฑล)' };
+  var head = [['เลขคิว', r.id], ['สาขา', r.branchName + (r.branchManager ? ' · ผู้ขอ ' + r.branchManager : ' · ' + r.requester)],
+    ['ลูกค้า', r.customer + ' · ' + (r.province || '')]];
+  if (!up) {
+    return { kind: 'ยอดต่ำนอกเส้นทาง (กรุงเทพฯ/ปริมณฑล)', good: true, verdict: 'ยอดต่ำกว่าเกณฑ์และอยู่นอกเส้นทางรถ',
+      rows: head.concat([['วันส่ง', thaiDate_(String(r.date)) + (r.plate ? ' · ' + r.plate : '')], ['ยอดขาย (ก่อน VAT)', b(r.value)],
+        ['ระยะทาง', (r.distanceKm || '-') + ' กม. จากสาขา'],
+        ['ค่าส่ง', 'นโยบาย ' + money_(r.feePolicy) + ' · เก็บ ' + b(r.feeCharged) + (r.feeReason ? ' (' + r.feeReason + ')' : '')]]) };
+  }
+  var feeRow = ['ค่าส่งที่เก็บลูกค้า', r.collectFee === false ? 'ไม่เก็บ' : b(fee) + (r.feePolicy !== '' && n(r.feePolicy) !== fee ? ' (นโยบาย ' + b(r.feePolicy) + ')' : '')];
+  var gpRow = ['กำไรขั้นต้น', b(gp) + (r.grossProfitPct !== '' ? ' (' + r.grossProfitPct + '% ของยอดขาย)' : '')];
+  if (role === 'coo') {
+    var st = parseStamp_(r.apprCeo);
+    var rows = head.concat([
+      ['วันส่ง / รถ', thaiDate_(String(r.date)) + (r.plate ? ' · ' + r.plate : '') + (c.departTime ? ' · ออก ' + c.departTime + ' น.' : '')],
+      ['ระยะไป-กลับ', (c.roundTripKm || '-') + ' กม. · ' + (c.days || 1) + ' วัน · ' + (c.staff || '-') + ' คน'],
+      ['ค่าน้ำมัน', b(c.fuel)], ['ค่าเสื่อม', b(c.depreciation)], ['ค่าแรง/OT/เบี้ยเลี้ยง', b(c.labor)],
+      ['ทางด่วน · ที่พัก · อื่นๆ', b(n(c.toll)) + ' · ' + b(n(c.lodging)) + ' · ' + b(n(c.other))],
+      ['รวมค่าขนส่ง (คลังประเมิน)', cost ? b(cost) : 'ยังไม่ประเมิน']]);
+    if (c.privateCost) rows.push(['ถ้าใช้ขนส่งเอกชน', b(c.privateCost) + (c.privateCost < cost ? ' (ถูกกว่า)' : '')]);
+    rows.push(gpRow, feeRow);
+    if (st) rows.push(['CEO', (st.ok ? 'อนุมัติ' : 'ไม่อนุมัติ') + ' · ' + st.date + ' ' + st.time + (st.note ? ' · ' + st.note : '')]);
+    return { kind: 'อนุมัติขั้นสุดท้าย · ค่าใช้จ่ายขนส่งต่างจังหวัด', rows: rows, verdict: verdict, good: good };
+  }
+  if (role === 'zone' || role === 'ceo') {
+    var rr = head.concat([['ประเภทสินค้า', (r.productType || '-') + ' · ' + (r.qty || '')], ['เลขที่ใบสั่งซื้อ', r.poNo || '-'],
+      ['ยอดขาย (ก่อน VAT)', b(r.value)], gpRow, feeRow,
+      ['วันส่ง', thaiDate_(String(r.date)) + (r.plate ? ' · ' + r.plate : '')], ['ระยะทาง', (r.distanceKm || '-') + ' กม. จากสาขา']]);
+    if (cost) rr.push(['ค่าขนส่ง (คลังประเมิน)', b(cost) + (c.roundTripKm ? ' · ไป-กลับ ' + c.roundTripKm + ' กม.' : '')]);
+    return { kind: 'คำขอจากสาขา · ส่งลูกค้าต่างจังหวัด', rows: rr, verdict: verdict, good: good };
+  }
+  var all = head.concat([['วันส่ง', thaiDate_(String(r.date)) + (r.plate ? ' · ' + r.plate : '')], ['ยอดขาย (ก่อน VAT)', b(r.value)],
+    ['ระยะทาง', (r.distanceKm || '-') + ' กม. จากสาขา'], gpRow, feeRow,
+    ['ค่าขนส่งที่คลังประเมิน', cost ? b(cost) + (c.roundTripKm ? ' (ไป-กลับ ' + c.roundTripKm + ' กม.)' : '') : 'คลังยังไม่ประเมิน']]);
+  if (c.privateCost) all.push(['ถ้าใช้ขนส่งเอกชน', b(c.privateCost) + (c.privateCost < cost ? ' (ถูกกว่า)' : '')]);
+  return { kind: 'ส่งลูกค้าต่างจังหวัด', rows: all, verdict: verdict, good: good };
 }
 
 function money_(v) { return Number(v || 0).toLocaleString('en-US'); }
@@ -80,7 +120,7 @@ function sendApprovalMail_(r, role) {
   try {
     var canAct = !!ACT_ROLES[role];
     var exp = Date.now() + ACT_TTL_MS;
-    var sum = decisionSummary_(r);
+    var sum = decisionSummary_(r, role);
     var e = function (x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (ch) { return '&#' + ch.charCodeAt(0) + ';'; }); };
     var btn = function (href, label, bg) {
       return '<a href="' + e(href) + '" style="display:inline-block;padding:12px 22px;margin:4px 8px 4px 0;border-radius:8px;background:' + bg +
@@ -120,7 +160,7 @@ function actView_(p) {
     var r = findRequest_(id);
     var pending = r.status === STATUS.APPROVAL && !!approvalStepFor_(role, apprOf_(r), r.kind === KIND_UP);
     data = { ok: true, id: id, role: role, roleLabel: ROLES[role], exp: exp, t: t, approve: p.a !== '0', pending: pending,
-      status: r.status, summary: decisionSummary_(r), poUrl: poFilesOf_(r).length ? poUrl_(id) : '',
+      status: r.status, summary: decisionSummary_(r, role), poUrl: poFilesOf_(r).length ? poUrl_(id) : '',
       formUrl: r.kind === KIND_UP ? formUrl_(id) : '' };
   } catch (err) {
     data = { ok: false, error: err.message };
