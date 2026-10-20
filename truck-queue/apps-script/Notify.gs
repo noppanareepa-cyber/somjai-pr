@@ -46,13 +46,33 @@ function actUrl_(id, role, exp, approve) {
     '&t=' + actToken_(id, role, exp) + '&a=' + (approve ? '1' : '0');
 }
 
-/** เกณฑ์งานต่างจังหวัด: กำไรขั้นต้น ≥ ค่าขนส่ง × gpCostRatio (1.5 = มากกว่าค่าใช้จ่าย 50%) */
+/**
+ * เกณฑ์งานต่างจังหวัด (หักค่าส่งที่เก็บลูกค้าก่อนเทียบ)
+ * ค่าใช้จ่ายสุทธิ = ค่าขนส่งที่คลังประเมิน − ค่าส่งที่เก็บลูกค้า
+ * ผ่านเมื่อ กำไรขั้นต้น ≥ ค่าใช้จ่ายสุทธิ × gpCostRatio (1.5 = มากกว่าค่าใช้จ่าย 50%)
+ */
 function gpCheck_(r) {
   var cost = Number(r.costTotal) || 0, gp = Number(r.grossProfit) || 0;
   if (r.kind !== KIND_UP || !cost) return null;
-  var ratio = Number(settings_().gpCostRatio) || 1.5, need = Math.ceil(cost * ratio);
-  return { ok: gp >= need, gp: gp, cost: cost, need: need, ratio: ratio, pct: Math.round((ratio - 1) * 100),
-    gpPctOfCost: Math.round(gp / cost * 100), gap: gp - need };
+  var fee = r.collectFee === false ? 0 : (Number(r.feeCharged) || 0);
+  var net = Math.max(0, cost - fee);
+  var ratio = Number(settings_().gpCostRatio) || 1.5, need = Math.ceil(net * ratio);
+  return { ok: gp >= need, gp: gp, cost: cost, fee: fee, net: net, need: need, ratio: ratio, pct: Math.round((ratio - 1) * 100),
+    gpPctOfNet: net ? Math.round(gp / net * 100) : null, gap: gp - need, remain: gp - net };
+}
+
+/** สรุปสุดท้ายสำหรับผู้บริหาร: [ป้าย, ตัวเลข, แบบ] · แบบ = '' | 'minus' | 'plus' | 'sub' | 'total' */
+function finalSummary_(chk) {
+  if (!chk) return null;
+  var b = function (v) { return money_(v) + ' บาท'; };
+  return [
+    ['กำไรขั้นต้น', b(chk.gp), ''],
+    ['หัก ค่าขนส่งที่คลังประเมิน', '− ' + b(chk.cost), 'minus'],
+    ['บวก ค่าส่งที่เก็บลูกค้า', '+ ' + b(chk.fee), 'plus'],
+    ['ค่าใช้จ่ายสุทธิ', b(chk.net), 'sub'],
+    ['กำไรคงเหลือหลังหักค่าใช้จ่าย', (chk.remain < 0 ? '− ' : '') + b(Math.abs(chk.remain)), 'total'],
+    ['เกณฑ์ (กำไรขั้นต้นมากกว่าค่าใช้จ่ายสุทธิ ' + chk.pct + '%)', 'ต้องอย่างน้อย ' + b(chk.need) + ' · ' + (chk.ok ? '✓ ผ่าน' : '✗ ไม่ผ่าน ขาด ' + b(-chk.gap)), 'rule']
+  ];
 }
 
 /**
@@ -69,8 +89,8 @@ function decisionSummary_(r, role) {
   var verdict = '', good = true;
   if (up && chk) {
     good = chk.ok;
-    verdict = (chk.ok ? '✓ ผ่านเกณฑ์' : '✗ ไม่ผ่านเกณฑ์') + ' · กำไรขั้นต้น ' + b(chk.gp) + ' = ' + chk.gpPctOfCost + '% ของค่าขนส่ง ' + b(chk.cost) +
-      ' (เกณฑ์: กำไรต้องมากกว่าค่าใช้จ่าย ' + chk.pct + '% คืออย่างน้อย ' + b(chk.need) + (chk.ok ? '' : ' · ขาดอีก ' + b(-chk.gap)) + ')';
+    verdict = (chk.ok ? '✓ ผ่านเกณฑ์' : '✗ ไม่ผ่านเกณฑ์') + ' · กำไรคงเหลือ ' + (chk.remain < 0 ? '− ' : '') + b(Math.abs(chk.remain)) +
+      (chk.net ? ' · กำไรขั้นต้น = ' + chk.gpPctOfNet + '% ของค่าใช้จ่ายสุทธิ (เกณฑ์ ≥ ' + Math.round(chk.ratio * 100) + '%)' : ' · ค่าส่งที่เก็บครอบคลุมค่าขนส่งทั้งหมด');
   } else if (up) {
     verdict = 'คลังยังไม่ประเมินค่าขนส่ง';
   }
@@ -95,20 +115,20 @@ function decisionSummary_(r, role) {
     if (c.privateCost) rows.push(['ถ้าใช้ขนส่งเอกชน', b(c.privateCost) + (c.privateCost < cost ? ' (ถูกกว่า)' : '')]);
     rows.push(gpRow, feeRow);
     if (st) rows.push(['CEO', (st.ok ? 'อนุมัติ' : 'ไม่อนุมัติ') + ' · ' + st.date + ' ' + st.time + (st.note ? ' · ' + st.note : '')]);
-    return { kind: 'อนุมัติขั้นสุดท้าย · ค่าใช้จ่ายขนส่งต่างจังหวัด', rows: rows, verdict: verdict, good: good };
+    return { kind: 'อนุมัติขั้นสุดท้าย · ค่าใช้จ่ายขนส่งต่างจังหวัด', rows: rows, verdict: verdict, good: good, final: finalSummary_(chk) };
   }
   if (role === 'zone' || role === 'ceo') {
     var rr = head.concat([['ประเภทสินค้า', (r.productType || '-') + ' · ' + (r.qty || '')], ['เลขที่ใบสั่งซื้อ', r.poNo || '-'],
       ['ยอดขาย (ก่อน VAT)', b(r.value)], gpRow, feeRow,
       ['วันส่ง', thaiDate_(String(r.date)) + (r.plate ? ' · ' + r.plate : '')], ['ระยะทาง', (r.distanceKm || '-') + ' กม. จากสาขา']]);
     if (cost) rr.push(['ค่าขนส่ง (คลังประเมิน)', b(cost) + (c.roundTripKm ? ' · ไป-กลับ ' + c.roundTripKm + ' กม.' : '')]);
-    return { kind: 'คำขอจากสาขา · ส่งลูกค้าต่างจังหวัด', rows: rr, verdict: verdict, good: good };
+    return { kind: 'คำขอจากสาขา · ส่งลูกค้าต่างจังหวัด', rows: rr, verdict: verdict, good: good, final: finalSummary_(chk) };
   }
   var all = head.concat([['วันส่ง', thaiDate_(String(r.date)) + (r.plate ? ' · ' + r.plate : '')], ['ยอดขาย (ก่อน VAT)', b(r.value)],
     ['ระยะทาง', (r.distanceKm || '-') + ' กม. จากสาขา'], gpRow, feeRow,
     ['ค่าขนส่งที่คลังประเมิน', cost ? b(cost) + (c.roundTripKm ? ' (ไป-กลับ ' + c.roundTripKm + ' กม.)' : '') : 'คลังยังไม่ประเมิน']]);
   if (c.privateCost) all.push(['ถ้าใช้ขนส่งเอกชน', b(c.privateCost) + (c.privateCost < cost ? ' (ถูกกว่า)' : '')]);
-  return { kind: 'ส่งลูกค้าต่างจังหวัด', rows: all, verdict: verdict, good: good };
+  return { kind: 'ส่งลูกค้าต่างจังหวัด', rows: all, verdict: verdict, good: good, final: finalSummary_(chk) };
 }
 
 function money_(v) { return Number(v || 0).toLocaleString('en-US'); }
@@ -133,6 +153,13 @@ function sendApprovalMail_(r, role) {
         return '<tr><td style="padding:4px 8px;color:#555;border-bottom:1px solid #eee;white-space:nowrap">' + e(x[0]) +
           '</td><td style="padding:4px 8px;border-bottom:1px solid #eee">' + e(x[1]) + '</td></tr>';
       }).join('') + '</table>' +
+      (sum.final ? '<table style="border-collapse:collapse;width:100%;margin-top:14px;border:2px solid ' + (sum.good ? '#1f7a3a' : '#a3261d') + ';border-radius:8px">' +
+        '<tr><td colspan="2" style="padding:8px 10px;background:' + (sum.good ? '#e6f2e9' : '#fbe9e7') + ';font-weight:bold">สรุปสำหรับผู้บริหาร</td></tr>' +
+        sum.final.map(function (x) {
+          var st = x[2] === 'total' ? 'font-weight:bold;font-size:17px;color:' + (sum.good ? '#1f7a3a' : '#a3261d') + ';border-top:2px solid #333'
+            : x[2] === 'sub' ? 'font-weight:bold;border-top:1px solid #999' : x[2] === 'rule' ? 'color:' + (sum.good ? '#1f7a3a' : '#a3261d') + ';font-size:14px' : '';
+          return '<tr><td style="padding:5px 10px;' + st + '">' + e(x[0]) + '</td><td style="padding:5px 10px;text-align:right;white-space:nowrap;' + st + '">' + e(x[1]) + '</td></tr>';
+        }).join('') + '</table>' : '') +
       (sum.verdict ? '<p style="font-size:17px;font-weight:bold;color:' + (sum.good ? '#1f7a3a' : '#a3261d') + '">' + e(sum.verdict) + '</p>' : '') +
       (canAct ? '<p>' + btn(actUrl_(r.id, role, exp, true), '✓ อนุมัติ', '#1f7a3a') + btn(actUrl_(r.id, role, exp, false), '✗ ไม่อนุมัติ', '#a3261d') + '</p>'
         : '<p>' + btn(ScriptApp.getService().getUrl(), 'เปิดระบบ (แท็บ รออนุมัติ)', '#1f7a3a') + '</p>') +

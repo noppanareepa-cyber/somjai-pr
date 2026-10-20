@@ -97,6 +97,14 @@
   .testbar { background: #6b4fbb; color: #fff; text-align: center; font-size: 14px; padding: 6px 10px; font-weight: 600; }
   .sumbox { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 8px 0; background: #fafcfa; }
   details.more { margin-top: 6px; } details.more summary { cursor: pointer; color: var(--green); font-size: 14px; }
+  .final { border: 2px solid var(--green); border-radius: 10px; margin: 10px 0 6px; overflow: hidden; background: #fff; }
+  .final.bad { border-color: var(--bad); }
+  .final-h { background: var(--green-soft); font-weight: 700; padding: 6px 10px; } .final.bad .final-h { background: var(--bad-soft); }
+  .fr { display: flex; justify-content: space-between; gap: 10px; padding: 4px 10px; font-size: 15px; }
+  .fr b { font-weight: 600; white-space: nowrap; } .fr.minus b { color: var(--bad); } .fr.plus b { color: var(--green); }
+  .fr.sub { border-top: 1px solid var(--line); } .fr.total { border-top: 2px solid var(--ink); font-size: 17px; }
+  .fr.total b { font-weight: 800; color: var(--green); } .final.bad .fr.total b { color: var(--bad); }
+  .fr.rule { font-size: 13px; color: var(--muted); } .fr.rule b { font-weight: 600; }
   .thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
   .thumb { position: relative; width: 84px; height: 84px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }

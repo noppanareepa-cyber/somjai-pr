@@ -741,7 +741,13 @@ function summaryBox(sm) {
   if (!sm) return '';
   return '<div class="sumbox"><div class="small muted">' + esc(sm.kind) + '</div><dl class="kv">' + sm.rows.map(function (x) {
     return '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; }).join('') + '</dl>' +
-    (sm.verdict ? '<div class="note ' + (sm.good ? 'ok' : 'bad') + '"><b>' + esc(sm.verdict) + '</b></div>' : '') + '</div>';
+    finalBox(sm) + (sm.verdict ? '<div class="note ' + (sm.good ? 'ok' : 'bad') + '"><b>' + esc(sm.verdict) + '</b></div>' : '') + '</div>';
+}
+/** สรุปสุดท้ายสำหรับผู้บริหาร: กำไรขั้นต้น − (ค่าขนส่ง − ค่าส่งที่เก็บ) = กำไรคงเหลือ */
+function finalBox(sm) {
+  if (!sm || !sm.final) return '';
+  return '<div class="final ' + (sm.good ? 'ok' : 'bad') + '"><div class="final-h">สรุปสำหรับผู้บริหาร</div>' + sm.final.map(function (x) {
+    return '<div class="fr ' + x[2] + '"><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>'; }).join('') + '</div>';
 }
 
 function renderApprove() {
@@ -832,9 +838,11 @@ function costForm(r, trucks, mode) {
       (x.privateCost ? ' · ขนส่งเอกชน ' + money(x.privateCost) + ' บาท' + (x.cheaperPrivate ? ' <b>(เอกชนถูกกว่า)</b>' : '') : '') +
       (r.feeCharged ? '<br>ค่าส่งที่เก็บลูกค้า ' + money(r.feeCharged) + ' บาท' : '') +
       (x.total ? (function () {
-        var need = Math.ceil(x.total * (B.settings.gpCostRatio || 1.5)), gp = Number(r.grossProfit) || 0;
-        return '<br><b style="color:var(--' + (gp >= need ? 'green' : 'bad') + ')">' + (gp >= need ? '✓ ผ่านเกณฑ์' : '✗ ไม่ผ่านเกณฑ์') +
-          '</b> กำไรขั้นต้น ' + money(gp) + ' · ต้องอย่างน้อย ' + money(need) + ' บาท (มากกว่าค่าใช้จ่าย ' + Math.round(((B.settings.gpCostRatio || 1.5) - 1) * 100) + '%)';
+        var fee = r.collectFee === false ? 0 : (Number(r.feeCharged) || 0), net = Math.max(0, x.total - fee);
+        var need = Math.ceil(net * (B.settings.gpCostRatio || 1.5)), gp = Number(r.grossProfit) || 0;
+        return '<br>ค่าใช้จ่ายสุทธิ (หักค่าส่งที่เก็บ) ' + money(net) + ' · กำไรคงเหลือ ' + money(gp - net) + ' บาท' +
+          '<br><b style="color:var(--' + (gp >= need ? 'green' : 'bad') + ')">' + (gp >= need ? '✓ ผ่านเกณฑ์' : '✗ ไม่ผ่านเกณฑ์') +
+          '</b> กำไรขั้นต้น ' + money(gp) + ' · ต้องอย่างน้อย ' + money(need) + ' บาท (มากกว่าค่าใช้จ่ายสุทธิ ' + Math.round(((B.settings.gpCostRatio || 1.5) - 1) * 100) + '%)';
       })() : '');
   };
   f.oninput = upd; f.onchange = upd; upd();

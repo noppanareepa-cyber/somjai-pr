@@ -450,7 +450,11 @@ test('อีเมลถึง CEO/COO เมื่อถึงคิว แล�
   assert.equal(m.to, 'ceo@somjai.co.th');
   assert.match(m.htmlBody, /คำขอจากสาขา/);
   assert.match(m.htmlBody, /เรียน คุณนพนารี พัวรัตนอรุณกร</);                              // CEO เห็นจุดเน้นคำขอของสาขา
-  assert.match(m.htmlBody, /✗ ไม่ผ่านเกณฑ์ · กำไรขั้นต้น 4,000 บาท = 84% ของค่าขนส่ง 4,764 บาท .*อย่างน้อย 7,146 บาท/);   // ต้อง ≥ 1.5 เท่า
+  // สรุปผู้บริหาร: กำไร 4,000 − (ค่าขนส่ง 4,764 − ค่าส่งที่เก็บ 2,340 = 2,424) = เหลือ 1,576 · เกณฑ์ ≥ 2,424 × 1.5 = 3,636
+  assert.match(m.htmlBody, /สรุปสำหรับผู้บริหาร/);
+  assert.match(m.htmlBody, /ค่าใช้จ่ายสุทธิ<\/td><td[^>]*>2,424 บาท/);
+  assert.match(m.htmlBody, /กำไรคงเหลือหลังหักค่าใช้จ่าย<\/td><td[^>]*>1,576 บาท/);
+  assert.match(m.htmlBody, /✓ ผ่านเกณฑ์ · กำไรคงเหลือ 1,576 บาท · กำไรขั้นต้น = 165% ของค่าใช้จ่ายสุทธิ/);
   const link = m.htmlBody.match(/href="([^"]*view=act[^"]*a=1)"/)[1].replace(/&#38;/g, '&');
   const p = Object.fromEntries(new URL(link).searchParams);
   // ลิงก์ปลอม / ตำแหน่งไม่ตรง ใช้ไม่ได้
@@ -634,16 +638,18 @@ test('โหมดทดสอบ: ทุกสาขาขอคิวได้
   assert.equal(J(S.branchRequests('00005')).length, 1);
 });
 
-test('เกณฑ์กำไรขั้นต้นมากกว่าค่าใช้จ่าย 50% (ปรับได้ที่ gpCostRatio)', () => {
+test('เกณฑ์กำไรขั้นต้นมากกว่าค่าใช้จ่ายสุทธิ 50% (หักค่าส่งที่เก็บก่อนเทียบ · ปรับได้ที่ gpCostRatio)', () => {
   const S = ready();
-  const r = S.submitRequest({ ...korat, grossProfit: 8000 });
+  const r = S.submitRequest({ ...korat, grossProfit: 3000 });            // ค่าส่งที่เก็บ 2,340
   S.decide('zone', 'zonemgr', 'อธินันท์ วีระจิตต์ (อัฐ)', r.id, true, '', null);
   S.decide('wh', 'klangsk', 'จรินทร มีเจริญ', r.id, true, '', { date: '2026-10-26', plate: 'บห 1782', cost: { roundTripKm: 496, kmPerLiter: 8, fuelPrice: 32, labor: 300 } });
   let c = J(S.gpCheck_(S.findRequest_(r.id)));
-  assert.deepEqual([c.ok, c.cost, c.need], [true, 4764, 7146]);        // 8,000 ≥ 4,764 × 1.5
+  assert.deepEqual([c.cost, c.fee, c.net, c.need, c.remain, c.ok], [4764, 2340, 2424, 3636, 576, false]);
   const ceo = J(S.approvals('ceo', 'ceoppp', 'CEO'))[0].summary;
-  assert.equal(ceo.good, true); assert.match(ceo.verdict, /^✓ ผ่านเกณฑ์/);
-  S.__sheets['ตั้งค่า']._rows.find(x => x[0] === 'gpCostRatio')[1] = 2;
+  assert.equal(ceo.good, false); assert.match(ceo.verdict, /^✗ ไม่ผ่านเกณฑ์ · กำไรคงเหลือ 576 บาท/);
+  assert.deepEqual(ceo.final.map(x => x[0]).slice(0, 5), ['กำไรขั้นต้น', 'หัก ค่าขนส่งที่คลังประเมิน', 'บวก ค่าส่งที่เก็บลูกค้า', 'ค่าใช้จ่ายสุทธิ', 'กำไรคงเหลือหลังหักค่าใช้จ่าย']);
+  assert.match(ceo.final[5][1], /ต้องอย่างน้อย 3,636 บาท · ✗ ไม่ผ่าน ขาด 636 บาท/);
+  S.__sheets['ตั้งค่า']._rows.find(x => x[0] === 'gpCostRatio')[1] = 1.2;
   c = J(S.gpCheck_(S.findRequest_(r.id)));
-  assert.deepEqual([c.ok, c.need], [false, 9528]);
+  assert.deepEqual([c.need, c.ok], [2909, true]);
 });
